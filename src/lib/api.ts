@@ -11,7 +11,7 @@ function isCapacitorNativeRuntime(): boolean {
 export function getApiBaseUrl(): string {
   if (DATA_PROVIDER !== "backend") return RAW_API_URL;
   if (isCapacitorNativeRuntime()) return RAW_API_URL;
-  return "/api";
+  return "/api/backend";
 }
 
 export const API_URL = getApiBaseUrl();
