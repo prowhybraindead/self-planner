@@ -32,6 +32,8 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BackendStatusCard } from "@/components/backend/backend-status";
+import { useLanguage } from "@/lib/language";
 import {
   Dialog,
   DialogClose,
@@ -212,6 +214,7 @@ function buildSparkline(
 // ─── Dashboard page ──────────────────────────────────────────
 
 export default function DashboardPage() {
+  const { labels } = useLanguage();
   const lastWidgetPayloadRef = useRef<string>("");
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -706,12 +709,14 @@ export default function DashboardPage() {
       >
         <div className="pointer-events-none absolute -top-8 right-0 h-28 w-28 rounded-full bg-accent-navy/20 blur-2xl" />
         <h1 className="text-2xl font-semibold text-white sm:text-3xl">
-          Dashboard
+          {labels.dashboard}
         </h1>
         <p className="mt-1 text-sm text-dark-300">
-          Tổng quan nhanh các khoản thanh toán định kỳ sắp tới.
+          {labels.managePersonalEvents}
         </p>
       </motion.div>
+
+      <BackendStatusCard />
 
       {/* ─── Summary cards ─── */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -726,11 +731,11 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 text-dark-400">
                 <Wallet className="h-4 w-4" />
                 <p className="text-xs uppercase tracking-wide">
-                  Upcoming 30 days
+                  {labels.upcoming30Days}
                 </p>
               </div>
               <p className="text-2xl font-semibold text-white">
-                {loading ? "..." : `${upcomingIn30Days.length} payments`}
+                {loading ? "..." : `${upcomingIn30Days.length} ${labels.payment}`}
               </p>
               <p className="text-sm text-dark-300">
                 {loading ? "..." : upcomingAmountLabel}
@@ -744,7 +749,7 @@ export default function DashboardPage() {
                 </p>
               ) : (
                 <p className="text-xs text-dark-400">
-                  Grouped by original currency
+                  {labels.groupedByOriginalCurrency}
                 </p>
               )}
             </CardContent>
@@ -762,14 +767,14 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 text-dark-400">
                 <TrendingUp className="h-4 w-4" />
                 <p className="text-xs uppercase tracking-wide">
-                  Total this month
+                  {labels.totalThisMonth}
                 </p>
               </div>
               <p className="text-2xl font-semibold text-white">
                 {loading ? "..." : totalThisMonth.label}
               </p>
               <p className="text-xs text-dark-400">
-                Tổng các khoản active recurring
+                {labels.activeRecurring} - {labels.subscriptionsCurrentlyActive}
               </p>
             </CardContent>
           </Card>
@@ -786,11 +791,11 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 text-dark-400">
                 <CalendarClock className="h-4 w-4" />
                 <p className="text-xs uppercase tracking-wide">
-                  Next payment
+                  {labels.nextPayment}
                 </p>
               </div>
               {loading ? (
-                <p className="text-sm text-dark-300">Loading...</p>
+                <p className="text-sm text-dark-300">{labels.loading}</p>
               ) : nextPayment ? (
                 <>
                   <p className="truncate text-lg font-semibold text-white">
@@ -803,12 +808,12 @@ export default function DashboardPage() {
                     )}
                   </p>
                   <p className="text-xs text-dark-400">
-                    {nextPayment.daysLeft} ngày nữa
+                    {nextPayment.daysLeft} {labels.daysLeft}
                   </p>
                 </>
               ) : (
                 <p className="text-sm text-dark-300">
-                  No upcoming payment
+                  {labels.noUpcomingPayment}
                 </p>
               )}
             </CardContent>
@@ -826,14 +831,14 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 text-dark-400">
                 <CreditCard className="h-4 w-4" />
                 <p className="text-xs uppercase tracking-wide">
-                  Active recurring
+                  {labels.activeRecurring}
                 </p>
               </div>
               <p className="text-2xl font-semibold text-white">
                 {loading ? "..." : payments.length}
               </p>
               <p className="text-xs text-dark-400">
-                Subscriptions currently active
+                {labels.subscriptionsCurrentlyActive}
               </p>
             </CardContent>
           </Card>
@@ -849,13 +854,13 @@ export default function DashboardPage() {
         <Card>
           <CardContent className="space-y-4 p-5">
             <p className="text-xs uppercase tracking-wide text-dark-400">
-              Quick actions
+              {labels.quickActions}
             </p>
             <div className="flex flex-wrap gap-3">
               <Link href="/payments">
                 <Button className="gap-2">
                   <PlusCircle className="h-4 w-4" />
-                  Add Payment
+                  {labels.addPayment}
                 </Button>
               </Link>
               <Button
@@ -864,7 +869,7 @@ export default function DashboardPage() {
                 onClick={openTimelineDialog}
               >
                 <SquarePen className="h-4 w-4" />
-                Quick Timeline
+                {labels.timeline}
               </Button>
               <Button
                 variant="outline"
@@ -872,7 +877,7 @@ export default function DashboardPage() {
                 onClick={openCalendarDialog}
               >
                 <PlusCircle className="h-4 w-4" />
-                Quick Calendar
+                {labels.calendar}
               </Button>
             </div>
           </CardContent>
@@ -884,11 +889,11 @@ export default function DashboardPage() {
         <CardContent className="space-y-3 p-5">
           <div className="flex items-center justify-between">
             <p className="text-xs uppercase tracking-wide text-dark-400">
-              Current Exchange Rates (to VND)
+              {labels.currentExchangeRates}
             </p>
             <div className="flex items-center gap-2">
               <Badge variant="outline">
-                {ratesLoading ? "Refreshing..." : "Realtime (60s)"}
+                {ratesLoading ? labels.refreshing : labels.realtime60s}
               </Badge>
               <Button
                 type="button"
@@ -905,13 +910,13 @@ export default function DashboardPage() {
                 ) : (
                   <RefreshCcw className="h-3.5 w-3.5" />
                 )}
-                Refresh
+                {labels.refresh}
               </Button>
             </div>
           </div>
           {fxSnapshots.length === 0 ? (
             <p className="text-sm text-dark-300">
-              Could not load exchange rates right now.
+              {labels.couldNotLoadExchangeRates}
             </p>
           ) : (
             <div className="space-y-4">
@@ -941,7 +946,7 @@ export default function DashboardPage() {
                   <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-xs uppercase tracking-wide text-dark-400">
-                        Selected Pair
+                        {labels.selectedPair}
                       </p>
                       <p className="text-lg font-semibold text-white">
                         1 {selectedRow.currency} ={" "}
@@ -972,9 +977,9 @@ export default function DashboardPage() {
                           : ""}
                       </Badge>
                     ) : (
-                      <Badge variant="outline">
-                        No previous snapshot
-                      </Badge>
+                        <Badge variant="outline">
+                          {labels.noPreviousSnapshot}
+                        </Badge>
                     )}
                   </div>
 
@@ -983,11 +988,11 @@ export default function DashboardPage() {
                       <div className="mb-1 flex items-center justify-between px-2 text-[11px] text-dark-400">
                         <span className="inline-flex items-center gap-1">
                           <BarChart3 className="h-3.5 w-3.5" />
-                          Trend (latest {selectedSeries.length} points)
+                          {labels.trend} ({selectedSeries.length} {labels.latestPoints})
                         </span>
                         <span>
-                          Range: {formatCurrency(chart.min)} -{" "}
-                          {formatCurrency(chart.max)}
+                        {labels.range}: {formatCurrency(chart.min)} -{" "}
+                        {formatCurrency(chart.max)}
                         </span>
                       </div>
                       <svg
@@ -1159,7 +1164,7 @@ export default function DashboardPage() {
         <DialogContent>
           <DialogClose onClose={() => setTimelineDialogOpen(false)} />
           <DialogHeader>
-            <DialogTitle>Quick Timeline Event</DialogTitle>
+        <DialogTitle>{labels.quickTimelineEvent}</DialogTitle>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -1170,7 +1175,7 @@ export default function DashboardPage() {
                 htmlFor="quick_timeline_title"
                 className="mb-1.5 block text-sm font-medium text-dark-300"
               >
-                Title
+                {labels.title}
               </label>
               <Input
                 id="quick_timeline_title"
@@ -1186,7 +1191,7 @@ export default function DashboardPage() {
                   htmlFor="quick_timeline_date"
                   className="mb-1.5 block text-sm font-medium text-dark-300"
                 >
-                  Date
+                  {labels.date}
                 </label>
                 <Input
                   id="quick_timeline_date"
@@ -1200,7 +1205,7 @@ export default function DashboardPage() {
                   htmlFor="quick_timeline_category"
                   className="mb-1.5 block text-sm font-medium text-dark-300"
                 >
-                  Category
+                  {labels.category}
                 </label>
                 <Input
                   id="quick_timeline_category"
@@ -1215,13 +1220,13 @@ export default function DashboardPage() {
                 htmlFor="quick_timeline_description"
                 className="mb-1.5 block text-sm font-medium text-dark-300"
               >
-                Description
+                {labels.description}
               </label>
               <textarea
                 id="quick_timeline_description"
                 rows={3}
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-dark-400"
-                placeholder="Optional note"
+                placeholder={labels.descriptionOptional}
                 {...registerTimeline("description")}
               />
             </div>
@@ -1242,7 +1247,7 @@ export default function DashboardPage() {
                 {quickSaving === "timeline" ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving...
+                    {labels.saving}
                   </>
                 ) : (
                   "Create"
@@ -1261,7 +1266,7 @@ export default function DashboardPage() {
         <DialogContent>
           <DialogClose onClose={() => setCalendarDialogOpen(false)} />
           <DialogHeader>
-            <DialogTitle>Quick Calendar Event</DialogTitle>
+        <DialogTitle>{labels.quickCalendarEvent}</DialogTitle>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -1272,7 +1277,7 @@ export default function DashboardPage() {
                 htmlFor="quick_calendar_title"
                 className="mb-1.5 block text-sm font-medium text-dark-300"
               >
-                Title
+                {labels.title}
               </label>
               <Input
                 id="quick_calendar_title"
@@ -1318,13 +1323,13 @@ export default function DashboardPage() {
                 htmlFor="quick_calendar_description"
                 className="mb-1.5 block text-sm font-medium text-dark-300"
               >
-                Description
+                {labels.description}
               </label>
               <textarea
                 id="quick_calendar_description"
                 rows={3}
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-dark-400"
-                placeholder="Optional note"
+                placeholder={labels.descriptionOptional}
                 {...registerCalendar("description")}
               />
             </div>
@@ -1345,7 +1350,7 @@ export default function DashboardPage() {
                 {quickSaving === "calendar" ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving...
+                    {labels.saving}
                   </>
                 ) : (
                   "Create"

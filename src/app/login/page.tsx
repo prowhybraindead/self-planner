@@ -13,9 +13,13 @@ import { AnimatedBackground } from "@/components/ui/animated-background";
 import { loginSchema, type LoginValues } from "@/lib/types";
 import { toast } from "sonner";
 import { BrandMark } from "@/components/brand/brand-mark";
+import { BackendStatusCard } from "@/components/backend/backend-status";
+import { LanguageToggle } from "@/components/ui/language-toggle";
+import { useLanguage } from "@/lib/language";
 
 export default function LoginPage() {
   const { signIn, user } = useAuth();
+  const { labels } = useLanguage();
   const router = useRouter();
 
   const {
@@ -58,6 +62,9 @@ export default function LoginPage() {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="w-full max-w-5xl"
         >
+          <div className="mb-4 flex justify-end">
+            <LanguageToggle className="h-10 rounded-full border-white/10 bg-white/[0.03] text-xs" />
+          </div>
           <div className="grid items-stretch gap-4 lg:grid-cols-[1.1fr_0.9fr]">
             <motion.section
               initial={{ opacity: 0, x: -10 }}
@@ -69,16 +76,16 @@ export default function LoginPage() {
                 <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-purple/15 ring-1 ring-sky-300/25">
                   <BrandMark className="h-9 w-9" compact />
                 </div>
-                <h1 className="text-3xl font-semibold text-white">SelfPlanner</h1>
+                <h1 className="text-3xl font-semibold text-white">{labels.loginHeroTitle}</h1>
                 <p className="mt-3 max-w-md text-sm leading-relaxed text-dark-300">
-                  Plan payments, events, and personal milestones in one calm workspace with realtime insights.
+                  {labels.loginHeroBody}
                 </p>
               </div>
 
               <div className="mt-8 space-y-3">
                 {[
-                  { icon: BarChart3, title: "Realtime Insights", desc: "Exchange rates and monthly outlook at a glance" },
-                  { icon: ShieldCheck, title: "Private by Design", desc: "Supabase RLS keeps every row scoped to your account" },
+                  { icon: BarChart3, title: labels.loginRealtime, desc: labels.loginRealtimeBody },
+                  { icon: ShieldCheck, title: labels.loginPrivate, desc: labels.loginPrivateBody },
                 ].map((item) => (
                   <div key={item.title} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
                     <div className="flex items-start gap-3">
@@ -107,13 +114,15 @@ export default function LoginPage() {
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-purple/15 ring-1 ring-sky-300/25 lg:mx-0 lg:hidden">
                   <BrandMark className="h-9 w-9" compact />
                 </div>
-                <h2 className="text-2xl font-semibold text-white">Đăng nhập</h2>
-                <p className="mt-2 text-sm text-dark-300">Welcome back, continue your personal planning flow.</p>
+                <h2 className="text-2xl font-semibold text-white">{labels.loginTitle}</h2>
+                <p className="mt-2 text-sm text-dark-300">{labels.loginSubtitle}</p>
               </div>
+
+              <BackendStatusCard />
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-dark-300">Email</label>
+                  <label className="text-sm font-medium text-dark-300">{labels.email}</label>
                   <Input
                     type="email"
                     placeholder="you@example.com"
@@ -125,7 +134,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-dark-300">Mật khẩu</label>
+                  <label className="text-sm font-medium text-dark-300">{labels.password}</label>
                   <Input
                     type="password"
                     placeholder="••••••••"
@@ -147,14 +156,14 @@ export default function LoginPage() {
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 ) : (
                   <>
-                    Đăng nhập
+                    {labels.login}
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
               </Button>
 
               <p className="mt-4 text-center text-xs text-dark-400">
-                Dự án cá nhân — Deep black starfield UI
+                {labels.personalProject}
               </p>
             </motion.form>
           </div>

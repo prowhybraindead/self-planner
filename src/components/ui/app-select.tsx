@@ -25,6 +25,7 @@ interface AppSelectProps {
   id?: string;
   className?: string;
   searchPlaceholder?: string;
+  emptyLabel?: string;
 }
 
 export function AppSelect({
@@ -37,6 +38,7 @@ export function AppSelect({
   id,
   className,
   searchPlaceholder = "Type to filter...",
+  emptyLabel = "No matching options",
 }: AppSelectProps) {
   const rootRef = React.useRef<HTMLDivElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
@@ -296,7 +298,7 @@ export function AppSelect({
           </div>
           <div ref={listRef} className="max-h-64 overflow-y-auto p-1.5">
             {visibleOptions.length === 0 ? (
-              <p className="px-2 py-3 text-xs text-dark-300">No matching options</p>
+              <p className="px-2 py-3 text-xs text-dark-300">{emptyLabel}</p>
             ) : groups && groups.length > 0
               ? filteredGroups.map((group) => (
                   <div key={group.label} className="mb-1 last:mb-0">

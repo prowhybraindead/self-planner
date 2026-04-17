@@ -16,6 +16,7 @@ import interactionPlugin, { type DateClickArg } from "@fullcalendar/interaction"
 import { useRouter } from "next/navigation";
 import { CalendarDays, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/lib/language";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -116,6 +117,7 @@ function FormError({ message }: { message?: string }) {
 }
 
 export default function CalendarPage() {
+  const { labels } = useLanguage();
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -321,7 +323,7 @@ export default function CalendarPage() {
     if (source !== "calendar") {
       const paymentId = arg.event.extendedProps?.payment_id;
       if (typeof paymentId !== "string" || paymentId.length === 0) {
-        toast.message("Recurring payment events are managed in Payments.");
+        toast.message(labels.paymentEventsManagedInPayments);
         return;
       }
       router.push(`/payments?edit=${encodeURIComponent(paymentId)}`);
@@ -457,14 +459,12 @@ export default function CalendarPage() {
         className="flex flex-wrap items-end justify-between gap-4"
       >
         <div>
-          <h1 className="text-2xl font-semibold text-white sm:text-3xl">Calendar</h1>
-          <p className="mt-1 text-sm text-dark-300">
-            Manage personal events and view recurring payment due dates in one place.
-          </p>
+          <h1 className="text-2xl font-semibold text-white sm:text-3xl">{labels.calendar}</h1>
+          <p className="mt-1 text-sm text-dark-300">{labels.managePersonalEvents}</p>
         </div>
         <Button onClick={() => openCreateDialog()} className="gap-2">
           <Plus className="h-4 w-4" />
-          Add Event
+          {labels.addEvent}
         </Button>
       </motion.div>
 
@@ -502,33 +502,33 @@ export default function CalendarPage() {
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <Badge variant="outline" className="gap-1">
           <CalendarDays className="h-3.5 w-3.5" />
-          {calendarEvents.length} calendar events
+          {calendarEvents.length} {labels.events}
         </Badge>
-        <Badge variant="outline">{recurringPayments.length} recurring sources</Badge>
-        <Badge variant="outline">Click date to add event</Badge>
-        <Badge variant="outline">Drag event to move date</Badge>
+          <Badge variant="outline">{recurringPayments.length} {labels.recurringSources}</Badge>
+        <Badge variant="outline">{labels.clickDateToAddEvent}</Badge>
+        <Badge variant="outline">{labels.dragEventToMoveDate}</Badge>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogClose onClose={() => setDialogOpen(false)} />
           <DialogHeader>
-            <DialogTitle>{editingEvent ? "Edit Calendar Event" : "Create Calendar Event"}</DialogTitle>
+          <DialogTitle>{editingEvent ? labels.editEvent : labels.createEvent}</DialogTitle>
           </DialogHeader>
 
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div>
               <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-dark-300">
-                Title
+                {labels.title}
               </label>
-              <Input id="title" placeholder="Team review, doctor visit..." {...register("title")} />
+              <Input id="title" placeholder={labels.teamReviewPlaceholder} {...register("title")} />
               <FormError message={errors.title?.message} />
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="start_date" className="mb-1.5 block text-sm font-medium text-dark-300">
-                  Start date
+                  {labels.startDate}
                 </label>
                 <Input id="start_date" type="date" {...register("start_date")} />
                 <FormError message={errors.start_date?.message} />
@@ -536,7 +536,7 @@ export default function CalendarPage() {
 
               <div>
                 <label htmlFor="end_date" className="mb-1.5 block text-sm font-medium text-dark-300">
-                  End date (optional)
+                  {labels.endDate} ({labels.optional})
                 </label>
                 <Input id="end_date" type="date" {...register("end_date")} />
                 <FormError message={errors.end_date?.message} />
@@ -545,13 +545,13 @@ export default function CalendarPage() {
 
             <div>
               <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-dark-300">
-                Description
+                {labels.description}
               </label>
               <textarea
                 id="description"
                 rows={3}
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-dark-400"
-                placeholder="Optional note"
+                placeholder={labels.optional}
                 {...register("description")}
               />
               <FormError message={errors.description?.message} />
@@ -560,7 +560,7 @@ export default function CalendarPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="color" className="mb-1.5 block text-sm font-medium text-dark-300">
-                  Event color
+                  {labels.color}
                 </label>
                 <Input id="color" type="color" className="h-11 w-full rounded-xl px-2" {...register("color")} />
                 <FormError message={errors.color?.message} />
@@ -568,8 +568,8 @@ export default function CalendarPage() {
 
               <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3">
                 <div>
-                  <p className="text-sm font-medium text-white">Recurring event</p>
-                  <p className="text-xs text-dark-400">Store RRULE string when enabled</p>
+                  <p className="text-sm font-medium text-white">{labels.recurringEvent}</p>
+                  <p className="text-xs text-dark-400">{labels.storeRrule}</p>
                 </div>
                 <input type="checkbox" className="h-4 w-4" {...register("is_recurring")} />
               </div>
@@ -578,7 +578,7 @@ export default function CalendarPage() {
             {isRecurring ? (
               <div>
                 <label htmlFor="recurrence_rule" className="mb-1.5 block text-sm font-medium text-dark-300">
-                  Recurrence rule (RRULE)
+                  {labels.rrule}
                 </label>
                 <Input
                   id="recurrence_rule"
@@ -601,22 +601,22 @@ export default function CalendarPage() {
                     }}
                   >
                     <Trash2 className="h-4 w-4" />
-                    Delete
+                    {labels.delete}
                   </Button>
                 ) : null}
               </div>
               <div className="flex gap-2">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                  Cancel
+                  {labels.cancel}
                 </Button>
                 <Button type="submit" disabled={saving} className="gap-2">
                   {saving ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Saving...
+                      {labels.save}
                     </>
                   ) : (
-                    <>{editingEvent ? "Update Event" : "Create Event"}</>
+                    <>{editingEvent ? labels.updateEvent : labels.createEvent}</>
                   )}
                 </Button>
               </div>

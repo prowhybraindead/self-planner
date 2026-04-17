@@ -20,6 +20,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/lib/language";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,14 +39,39 @@ import {
 
 const statusFilters = ["all", "pending", "done", "cancelled"] as const;
 const categoryPresets = ["finance", "work", "personal", "health", "learning", "other"] as const;
-const timelineStatusOptions: AppSelectOption[] = [
-  { value: "pending", label: "Pending" },
-  { value: "done", label: "Done" },
-  { value: "cancelled", label: "Cancelled" },
-];
 
 function normalizeCategory(value: string | null | undefined): string {
   return (value ?? "other").trim().toLowerCase() || "other";
+}
+
+function getStatusLabel(
+  labels: ReturnType<typeof useLanguage>["labels"],
+  status: (typeof statusFilters)[number]
+): string {
+  if (status === "all") return labels.statusAll;
+  if (status === "pending") return labels.statusPending;
+  if (status === "done") return labels.statusDone;
+  return labels.statusCancelled;
+}
+
+function getCategoryLabel(
+  labels: ReturnType<typeof useLanguage>["labels"],
+  category: string
+): string {
+  switch (normalizeCategory(category)) {
+    case "finance":
+      return labels.categoryFinance;
+    case "work":
+      return labels.categoryWork;
+    case "personal":
+      return labels.categoryPersonal;
+    case "health":
+      return labels.categoryHealth;
+    case "learning":
+      return labels.categoryLearning;
+    default:
+      return labels.categoryOther;
+  }
 }
 
 function getCategoryMeta(category: string | null) {
@@ -81,6 +107,7 @@ function getTodayDateInputValue(): string {
 }
 
 export default function TimelinePage() {
+  const { labels } = useLanguage();
   const [userId, setUserId] = useState<string | null>(null);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,6 +136,14 @@ export default function TimelinePage() {
     },
   });
   const formStatusField = useWatch({ control, name: "status" }) ?? "pending";
+  const timelineStatusOptions = useMemo<AppSelectOption[]>(
+    () => [
+      { value: "pending", label: labels.statusPending },
+      { value: "done", label: labels.statusDone },
+      { value: "cancelled", label: labels.statusCancelled },
+    ],
+    [labels]
+  );
 
   const fetchTimelineEvents = useCallback(async (id: string) => {
     setLoading(true);
@@ -342,17 +377,17 @@ export default function TimelinePage() {
         className="flex flex-wrap items-end justify-between gap-4"
       >
         <div>
-          <h1 className="text-2xl font-semibold text-white sm:text-3xl">Timeline</h1>
+          <h1 className="text-2xl font-semibold text-white sm:text-3xl">{labels.timeline}</h1>
           <p className="mt-1 text-sm text-dark-300">
-            {events.length} events total, {doneCount} completed
+            {events.length} {labels.eventsTotal}, {doneCount} {labels.completed}
           </p>
           <p className="mt-1 text-xs text-dark-400 md:hidden">
-            Swipe left/right on timeline list to switch status filter quickly.
+            {labels.swipeToFilter}
           </p>
         </div>
         <Button onClick={openCreateDialog} className="gap-2">
           <Plus className="h-4 w-4" />
-          Add Event
+          {labels.addEvent}
         </Button>
       </motion.div>
 
@@ -367,7 +402,7 @@ export default function TimelinePage() {
                 className="capitalize"
                 onClick={() => setStatusFilter(filter)}
               >
-                {filter}
+                {getStatusLabel(labels, filter)}
               </Button>
             ))}
           </div>
@@ -378,7 +413,7 @@ export default function TimelinePage() {
               variant={categoryFilter === "all" ? "default" : "outline"}
               onClick={() => setCategoryFilter("all")}
             >
-              All categories
+              {labels.categories}
             </Button>
             {categories.map((category) => (
               <Button
@@ -388,7 +423,7 @@ export default function TimelinePage() {
                 className="capitalize"
                 onClick={() => setCategoryFilter(category)}
               >
-                {category}
+                {getCategoryLabel(labels, category)}
               </Button>
             ))}
           </div>
@@ -405,9 +440,9 @@ export default function TimelinePage() {
         <Card onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
           <CardContent className="py-16 text-center">
             <Clock className="mx-auto mb-3 h-10 w-10 text-dark-400" />
-            <p className="text-sm text-dark-300">No events match your current filters.</p>
+            <p className="text-sm text-dark-300">{labels.noEventsMatch}</p>
             <Button onClick={openCreateDialog} variant="outline" className="mt-4">
-              Create first event
+              {labels.createFirstEvent}
             </Button>
           </CardContent>
         </Card>
@@ -460,11 +495,11 @@ export default function TimelinePage() {
                             }
                             className="capitalize"
                           >
-                            {event.status}
+                            {getStatusLabel(labels, event.status)}
                           </Badge>
 
                           <Badge variant="outline" className="capitalize">
-                            {normalizeCategory(event.category)}
+                            {getCategoryLabel(labels, normalizeCategory(event.category))}
                           </Badge>
                         </div>
 
@@ -487,7 +522,7 @@ export default function TimelinePage() {
                               void setStatus(event, isDone ? "pending" : "done");
                             }}
                           >
-                            {isDone ? "Mark pending" : "Mark done"}
+                            {isDone ? labels.markPending : labels.markDone}
                           </Button>
 
                           {event.status !== "cancelled" ? (
@@ -500,7 +535,7 @@ export default function TimelinePage() {
                               }}
                             >
                               <XCircle className="h-3.5 w-3.5" />
-                              Cancel
+                              {labels.cancel}
                             </Button>
                           ) : (
                             <Button
@@ -510,13 +545,13 @@ export default function TimelinePage() {
                                 void setStatus(event, "pending");
                               }}
                             >
-                              Re-open
+                              {labels.reopen}
                             </Button>
                           )}
 
                           <Button size="sm" variant="outline" className="gap-1" onClick={() => openEditDialog(event)}>
                             <Edit3 className="h-3.5 w-3.5" />
-                            Edit
+                            {labels.edit}
                           </Button>
 
                           <Button
@@ -528,7 +563,7 @@ export default function TimelinePage() {
                             }}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                            Delete
+                            {labels.delete}
                           </Button>
                         </div>
                       </div>
@@ -545,7 +580,7 @@ export default function TimelinePage() {
         <div className="mx-auto flex max-w-xl items-center gap-2 rounded-2xl border border-sky-200/20 bg-dark-900/80 p-2 shadow-xl backdrop-blur-xl">
           <Button size="sm" className="flex-1 gap-1" onClick={openCreateDialog}>
             <Plus className="h-3.5 w-3.5" />
-            Add
+            {labels.add}
           </Button>
           <Button
             size="sm"
@@ -553,7 +588,7 @@ export default function TimelinePage() {
             className="flex-1 capitalize"
             onClick={() => cycleStatusFilter(1)}
           >
-            Status: {statusFilter}
+            {labels.statusFilter}: {getStatusLabel(labels, statusFilter)}
           </Button>
           <Button
             size="sm"
@@ -564,7 +599,7 @@ export default function TimelinePage() {
               setCategoryFilter("all");
             }}
           >
-            Reset
+            {labels.resetFilters}
           </Button>
         </div>
       </div>
@@ -573,22 +608,22 @@ export default function TimelinePage() {
         <DialogContent>
           <DialogClose onClose={() => setDialogOpen(false)} />
           <DialogHeader>
-            <DialogTitle>{editingEvent ? "Edit Event" : "Add Event"}</DialogTitle>
+            <DialogTitle>{editingEvent ? labels.editEvent : labels.addEvent}</DialogTitle>
           </DialogHeader>
 
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div>
               <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-dark-300">
-                Title
+                {labels.title}
               </label>
-              <Input id="title" placeholder="Prepare monthly budget review" {...register("title")} />
+              <Input id="title" placeholder={labels.quickTimelineEvent} {...register("title")} />
               <FormError message={errors.title?.message} />
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="date" className="mb-1.5 block text-sm font-medium text-dark-300">
-                  Date
+                  {labels.date}
                 </label>
                 <Input id="date" type="date" {...register("date")} />
                 <FormError message={errors.date?.message} />
@@ -596,11 +631,12 @@ export default function TimelinePage() {
 
               <div>
                 <label htmlFor="status" className="mb-1.5 block text-sm font-medium text-dark-300">
-                  Status
+                  {labels.statusFilter}
                 </label>
                 <AppSelect
                   id="status"
                   value={formStatusField}
+                  placeholder={labels.statusFilter}
                   onValueChange={(next) => {
                     setValue("status", next as TimelineEventValues["status"], {
                       shouldDirty: true,
@@ -608,7 +644,8 @@ export default function TimelinePage() {
                     });
                   }}
                   options={timelineStatusOptions}
-                  searchPlaceholder="Type status..."
+                  searchPlaceholder={labels.typeStatus}
+                  emptyLabel={labels.noMatchingOptions}
                 />
                 <FormError message={errors.status?.message} />
               </div>
@@ -616,9 +653,9 @@ export default function TimelinePage() {
 
             <div>
               <label htmlFor="category" className="mb-1.5 block text-sm font-medium text-dark-300">
-                Category
+                {labels.category}
               </label>
-              <Input id="category" list="timeline-categories" placeholder="finance, work, personal..." {...register("category")} />
+              <Input id="category" list="timeline-categories" placeholder={labels.typeCategory} {...register("category")} />
               <datalist id="timeline-categories">
                 {categories.map((category) => (
                   <option key={category} value={category} />
@@ -629,13 +666,13 @@ export default function TimelinePage() {
 
             <div>
               <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-dark-300">
-                Description
+                {labels.description}
               </label>
               <textarea
                 id="description"
                 rows={3}
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-dark-400"
-                placeholder="Optional note"
+                placeholder={labels.descriptionOptional}
                 {...register("description")}
               />
               <FormError message={errors.description?.message} />
@@ -643,16 +680,16 @@ export default function TimelinePage() {
 
             <div className="flex justify-end gap-2 pt-1">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
+                {labels.cancel}
               </Button>
               <Button type="submit" disabled={saving} className="gap-2">
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving...
+                    {labels.saving}
                   </>
                 ) : (
-                  <>{editingEvent ? "Update Event" : "Create Event"}</>
+                  <>{editingEvent ? labels.updateEvent : labels.createEvent}</>
                 )}
               </Button>
             </div>

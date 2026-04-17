@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date as Date, datetime
 from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -24,7 +24,7 @@ class RecurringPaymentBase(BaseModel):
     day_of_month: int = Field(ge=1, le=31)
     description: str | None = None
     is_active: bool = True
-    next_due_date: date | None = None
+    next_due_date: Date | None = None
 
 
 class RecurringPaymentCreate(RecurringPaymentBase):
@@ -39,7 +39,7 @@ class RecurringPaymentUpdate(BaseModel):
     day_of_month: int | None = Field(default=None, ge=1, le=31)
     description: str | None = None
     is_active: bool | None = None
-    next_due_date: date | None = None
+    next_due_date: Date | None = None
 
 
 class RecurringPaymentOut(RecurringPaymentBase):
@@ -85,7 +85,7 @@ class CalendarEventOut(CalendarEventBase):
 class TimelineEventBase(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str | None = None
-    date: date
+    date: Date
     status: TimelineStatus = "pending"
     category: str | None = None
 
@@ -97,7 +97,7 @@ class TimelineEventCreate(TimelineEventBase):
 class TimelineEventUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
-    date: date | None = None
+    date: Date | None = None
     status: TimelineStatus | None = None
     category: str | None = None
 

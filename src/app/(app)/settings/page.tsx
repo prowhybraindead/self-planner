@@ -19,8 +19,10 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BackendStatusCard } from "@/components/backend/backend-status";
 import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useLanguage } from "@/lib/language";
 import { getCurrentUserId, getCurrentUserPayments, supabase } from "@/lib/supabase";
 import type { UserSettings } from "@/lib/types";
 import {
@@ -90,6 +92,7 @@ function computeNextDueDate(dayOfMonth: number, candidate?: string | null): Date
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
+  const { labels } = useLanguage();
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -145,7 +148,7 @@ export default function SettingsPage() {
 
   const checkSchemaHealth = useCallback(async (targetUserId: string) => {
     setSchemaStatus("checking");
-    setSchemaMessage("Checking recurring_payments schema...");
+    setSchemaMessage(labels.checkingSchema);
     setSchemaMissingColumns([]);
 
     const requiredColumns = ["payment_method", "currency", "next_due_date"] as const;
@@ -167,20 +170,20 @@ export default function SettingsPage() {
       }
 
       setSchemaStatus("degraded");
-      setSchemaMessage(error.message || "Could not verify schema health.");
+      setSchemaMessage(error.message || labels.couldNotVerifySchema);
       return;
     }
 
     if (missingColumns.length > 0) {
       setSchemaStatus("degraded");
       setSchemaMissingColumns(Array.from(new Set(missingColumns)));
-      setSchemaMessage("Schema mismatch detected. Migration is required.");
+      setSchemaMessage(labels.schemaMismatchDetected);
       return;
     }
 
     setSchemaStatus("healthy");
-    setSchemaMessage("Schema looks good for recurring payments.");
-  }, []);
+    setSchemaMessage(labels.schemaLooksGood);
+  }, [labels]);
 
   useEffect(() => {
     let mounted = true;
@@ -318,13 +321,13 @@ export default function SettingsPage() {
 
       await publishWidgetSnapshot(snapshot);
       setWidgetSnapshot(snapshot);
-      toast.success("Widget snapshot generated");
+      toast.success(labels.widgetSnapshotGenerated);
     } catch (error) {
       toast.error("Could not generate widget snapshot", {
         description: error instanceof Error ? error.message : "Please try again",
       });
     }
-  }, [userId]);
+  }, [labels, userId]);
 
   const saveSettings = async () => {
     if (!userId) return;
@@ -374,12 +377,12 @@ export default function SettingsPage() {
         className="flex flex-wrap items-end justify-between gap-4"
       >
         <div>
-          <h1 className="text-2xl font-semibold text-white sm:text-3xl">Settings</h1>
-          <p className="mt-1 text-sm text-dark-300">Control your account and notification preferences.</p>
+          <h1 className="text-2xl font-semibold text-white sm:text-3xl">{labels.settings}</h1>
+          <p className="mt-1 text-sm text-dark-300">{labels.controlPreferences}</p>
         </div>
         <Button onClick={saveSettings} disabled={loading || saving} className="gap-2">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Save Changes
+          {labels.saveChanges}
         </Button>
       </motion.div>
 
@@ -391,6 +394,8 @@ export default function SettingsPage() {
         </Card>
       ) : (
         <>
+          <BackendStatusCard />
+
           <Card>
             <CardContent className="p-5">
               <div className="flex items-center gap-4">
@@ -399,9 +404,9 @@ export default function SettingsPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-lg font-semibold text-white">{user?.email ?? "Personal User"}</h2>
-                  <p className="truncate text-sm text-dark-400">Single-user private workspace</p>
+                  <p className="truncate text-sm text-dark-400">{labels.singleUserPrivateWorkspace}</p>
                 </div>
-                <Badge variant="success">Active</Badge>
+                <Badge variant="success">{labels.active}</Badge>
               </div>
             </CardContent>
           </Card>
@@ -410,14 +415,14 @@ export default function SettingsPage() {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Bell className="h-4 w-4 text-amber-300" />
-                Notifications
+                {labels.notifications}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3">
                 <div>
-                  <p className="text-sm font-medium text-white">Payment reminders</p>
-                  <p className="text-xs text-dark-400">Enable push reminders before due dates</p>
+                  <p className="text-sm font-medium text-white">{labels.paymentReminders}</p>
+                  <p className="text-xs text-dark-400">{labels.enablePushReminders}</p>
                 </div>
                 <button
                   type="button"
@@ -425,7 +430,7 @@ export default function SettingsPage() {
                   className={`relative h-7 w-12 rounded-full transition ${
                     notificationsEnabled ? "bg-accent-green" : "bg-dark-600"
                   }`}
-                  aria-label="Toggle notifications"
+                  aria-label={labels.paymentReminders}
                   aria-pressed={notificationsEnabled}
                 >
                   <span
@@ -438,17 +443,19 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div>
-                  <p className="text-sm font-medium text-white">Notify me before</p>
-                  <p className="text-xs text-dark-400">Choose lead time for reminder notifications</p>
+                  <p className="text-sm font-medium text-white">{labels.notifyMeBefore}</p>
+                  <p className="text-xs text-dark-400">{labels.chooseLeadTime}</p>
                 </div>
                 <AppSelect
                   id="notify_before_days"
                   value={String(notifyBeforeDays)}
                   disabled={!notificationsEnabled}
+                  placeholder={labels.notifyMeBefore}
                   onValueChange={(next) => setNotifyBeforeDays(Number(next))}
                   options={notifySelectOptions}
                   className="min-w-40"
-                  searchPlaceholder="Type reminder days..."
+                  searchPlaceholder={labels.typeReminderDays}
+                  emptyLabel={labels.noMatchingOptions}
                 />
               </div>
 
@@ -466,9 +473,9 @@ export default function SettingsPage() {
               </div>
 
               <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                <p className="text-sm font-medium text-white">Native reminder sync</p>
+                <p className="text-sm font-medium text-white">{labels.nativeReminderSync}</p>
                 <p className="mt-1 text-xs text-dark-400">
-                  Permission: {notificationPermission}
+                  {labels.permission}: {notificationPermission}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
@@ -480,15 +487,15 @@ export default function SettingsPage() {
                       const permission = await getLocalNotificationPermissionState();
                       setNotificationPermission(permission);
                       if (granted) {
-                        toast.success("Notification permission granted");
+                        toast.success(labels.notificationPermissionGranted);
                       } else {
-                        toast.error("Notification permission denied");
+                        toast.error(labels.notificationPermissionDenied);
                       }
                     }}
                     disabled={!isNativeRuntime}
                   >
                     <Bell className="h-4 w-4" />
-                    Allow Notifications
+                    {labels.allowNotifications}
                   </Button>
 
                   <Button
@@ -509,11 +516,11 @@ export default function SettingsPage() {
                     ) : (
                       <RefreshCcw className="h-4 w-4" />
                     )}
-                    Sync Reminders
+                    {labels.syncReminders}
                   </Button>
                 </div>
                 <p className="mt-2 text-xs text-dark-400">
-                  {reminderSyncMessage || "Sync local reminders from active recurring payments."}
+                  {reminderSyncMessage || labels.syncLocalReminders}
                 </p>
               </div>
             </CardContent>
@@ -523,14 +530,14 @@ export default function SettingsPage() {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Sparkles className="h-4 w-4 text-sky-300" />
-                Space Visual FX
+                {labels.spaceVisualFx}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div>
-                  <p className="text-sm font-medium text-white">Star density</p>
-                  <p className="text-xs text-dark-400">Strong = denser stars + more comet bursts</p>
+                  <p className="text-sm font-medium text-white">{labels.starDensity}</p>
+                  <p className="text-xs text-dark-400">{labels.strongDensityDesc}</p>
                 </div>
                 <div className="inline-flex rounded-xl border border-white/12 bg-white/[0.03] p-1">
                   <button
@@ -542,7 +549,7 @@ export default function SettingsPage() {
                         : "text-dark-300 hover:text-white"
                     }`}
                   >
-                    Light
+                    {labels.light}
                   </button>
                   <button
                     type="button"
@@ -553,15 +560,15 @@ export default function SettingsPage() {
                         : "text-dark-300 hover:text-white"
                     }`}
                   >
-                    Strong
+                    {labels.strong}
                   </button>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div>
-                  <p className="text-sm font-medium text-white">Parallax intensity</p>
-                  <p className="text-xs text-dark-400">Move stars with pointer and device tilt</p>
+                  <p className="text-sm font-medium text-white">{labels.parallaxIntensity}</p>
+                  <p className="text-xs text-dark-400">{labels.parallaxDesc}</p>
                 </div>
                 <div className="inline-flex rounded-xl border border-white/12 bg-white/[0.03] p-1">
                   <button
@@ -573,7 +580,7 @@ export default function SettingsPage() {
                         : "text-dark-300 hover:text-white"
                     }`}
                   >
-                    Light
+                    {labels.light}
                   </button>
                   <button
                     type="button"
@@ -584,7 +591,7 @@ export default function SettingsPage() {
                         : "text-dark-300 hover:text-white"
                     }`}
                   >
-                    Strong
+                    {labels.strong}
                   </button>
                 </div>
               </div>
@@ -592,7 +599,7 @@ export default function SettingsPage() {
               <div className="rounded-xl border border-sky-400/20 bg-sky-500/5 p-3">
                 <p className="flex items-center gap-2 text-xs text-sky-100">
                   <Orbit className="h-3.5 w-3.5" />
-                  Applied instantly and saved on this device.
+                  {labels.appliedInstantly}
                 </p>
               </div>
             </CardContent>
@@ -602,7 +609,7 @@ export default function SettingsPage() {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Smartphone className="h-4 w-4 text-emerald-300" />
-                Android Widget (Ready)
+                {labels.androidWidget}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -610,22 +617,22 @@ export default function SettingsPage() {
                 {widgetSnapshot ? (
                   <div className="space-y-1.5 text-sm">
                     <p className="text-white">
-                      Active recurring:{" "}
+                      {labels.activeRecurring}:{" "}
                       <span className="font-semibold">{widgetSnapshot.active_recurring_count}</span>
                     </p>
                     <p className="text-dark-300">
-                      Upcoming 30d: {widgetSnapshot.upcoming_30d_count}
+                      {labels.upcoming30Days}: {widgetSnapshot.upcoming_30d_count}
                     </p>
                     <p className="text-dark-300">
-                      Next payment: {widgetSnapshot.next_payment_name ?? "N/A"}
+                      {labels.nextPayment}: {widgetSnapshot.next_payment_name ?? "N/A"}
                     </p>
                     <p className="text-xs text-dark-400">
-                      Snapshot at {new Date(widgetSnapshot.generated_at).toLocaleString("vi-VN")}
+                      {labels.snapshotAt} {new Date(widgetSnapshot.generated_at).toLocaleString("vi-VN")}
                     </p>
                   </div>
                 ) : (
                   <p className="text-sm text-dark-300">
-                    Widget snapshot chưa có. Mở Dashboard để app tạo snapshot đầu tiên.
+                    {labels.widgetSnapshotMissing}
                   </p>
                 )}
               </div>
@@ -640,7 +647,7 @@ export default function SettingsPage() {
                   }}
                 >
                   <Sparkles className="h-4 w-4" />
-                  Generate Snapshot
+                  {labels.generateSnapshot}
                 </Button>
                 <Button
                   type="button"
@@ -648,11 +655,11 @@ export default function SettingsPage() {
                   className="gap-2"
                   onClick={() => {
                     void requestWidgetRefresh();
-                    toast.success("Widget refresh request sent");
+                    toast.success(labels.widgetRefreshRequested);
                   }}
                 >
                   <RefreshCcw className="h-4 w-4" />
-                  Request Widget Refresh
+                  {labels.requestWidgetRefresh}
                 </Button>
               </div>
             </CardContent>
@@ -662,7 +669,7 @@ export default function SettingsPage() {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Shield className="h-4 w-4 text-sky-300" />
-                Schema Health
+                {labels.schemaHealth}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -678,18 +685,18 @@ export default function SettingsPage() {
                     }
                   >
                     {schemaStatus === "checking"
-                      ? "Checking"
+                      ? labels.checkingSchema
                       : schemaStatus === "healthy"
-                        ? "Healthy"
+                        ? labels.schemaLooksGood
                         : schemaStatus === "degraded"
-                          ? "Mismatch"
-                          : "Unknown"}
+                          ? labels.schemaMismatchDetected
+                          : labels.unknown}
                   </Badge>
-                  <p className="text-xs text-dark-300">{schemaMessage || "Not checked yet."}</p>
+                  <p className="text-xs text-dark-300">{schemaMessage || labels.notCheckedYet2}</p>
                 </div>
                 {schemaMissingColumns.length > 0 ? (
                   <p className="mt-2 text-xs text-red-300">
-                    Missing columns: {schemaMissingColumns.join(", ")}
+                    {labels.missingColumns}: {schemaMissingColumns.join(", ")}
                   </p>
                 ) : null}
               </div>
@@ -709,12 +716,12 @@ export default function SettingsPage() {
                 ) : (
                   <RefreshCcw className="h-4 w-4" />
                 )}
-                Re-check Schema
+                {labels.recheckSchema}
               </Button>
 
               {schemaStatus === "degraded" ? (
                 <p className="text-xs text-dark-400">
-                  Run <span className="text-white">supabase-schema.sql</span> in Supabase SQL Editor, then re-check.
+                  {labels.runSchema}
                 </p>
               ) : null}
             </CardContent>
@@ -724,15 +731,15 @@ export default function SettingsPage() {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Info className="h-4 w-4 text-sky-300" />
-                About
+                {labels.about}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {[
-                { label: "App Version", value: "1.1.0" },
-                { label: "Framework", value: "Next.js 16" },
-                { label: "Platform", value: "Web + Capacitor Android" },
-                { label: "Theme", value: "Deep Black Starfield" },
+                { label: labels.appVersion, value: "1.1.0" },
+                { label: labels.framework, value: "Next.js 16" },
+                { label: labels.platform, value: "Web + Capacitor Android" },
+                { label: labels.theme, value: "Deep Black Starfield" },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -748,9 +755,9 @@ export default function SettingsPage() {
           <Card>
             <CardContent className="space-y-2 p-3">
               {[
-                { icon: Shield, label: "Privacy & Security", desc: "Data protected by Supabase RLS" },
-                { icon: Smartphone, label: "Android Ready", desc: "FCM token supported for push notifications" },
-                { icon: User, label: "Single User Workspace", desc: "Optimized for personal planning flow" },
+                { icon: Shield, label: labels.privacySecurity, desc: labels.privacySecurityDesc },
+                { icon: Smartphone, label: labels.androidReady, desc: labels.androidReadyDesc },
+                { icon: User, label: labels.singleUserWorkspace, desc: labels.singleUserWorkspaceDesc },
               ].map((item) => (
                 <div key={item.label} className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                   <div className="flex items-start gap-3">
@@ -773,7 +780,7 @@ export default function SettingsPage() {
             onClick={handleSignOut}
           >
             <LogOut className="h-4 w-4" />
-            Sign Out
+            {labels.signOut}
           </Button>
         </>
       )}

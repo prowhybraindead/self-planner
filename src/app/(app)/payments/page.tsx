@@ -19,6 +19,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/lib/language";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -166,6 +167,7 @@ function PaymentSkeletonCard() {
 // ─── Main page ───────────────────────────────────────────────
 
 export default function PaymentsPage() {
+  const { labels } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -444,17 +446,16 @@ export default function PaymentsPage() {
       >
         <div>
           <h1 className="text-2xl font-semibold text-white sm:text-3xl">
-            Recurring Payments
+            {labels.recurringPayments}
           </h1>
           <p className="mt-1 text-sm text-dark-300">
-            {activeCount} active
-            {inactiveCount > 0 && ` · ${inactiveCount} paused`} — quản lý các
-            khoản thanh toán định kỳ
+            {activeCount} {labels.active}
+            {inactiveCount > 0 && ` · ${inactiveCount} ${labels.paused}`} — {labels.recurringPayments}
           </p>
         </div>
         <Button onClick={openCreateDialog} className="gap-2">
           <Plus className="h-4 w-4" />
-          Add Payment
+          {labels.addPayment}
         </Button>
       </motion.div>
 
@@ -471,14 +472,14 @@ export default function PaymentsPage() {
           <CardContent className="py-16 text-center">
             <CreditCard className="mx-auto mb-3 h-10 w-10 text-dark-400" />
             <p className="text-sm text-dark-300">
-              Chưa có recurring payment nào
+              {labels.noRecurringPayments}
             </p>
             <Button
               onClick={openCreateDialog}
               variant="outline"
               className="mt-4"
             >
-              Tạo payment đầu tiên
+              {labels.createFirstPayment}
             </Button>
           </CardContent>
         </Card>
@@ -520,20 +521,20 @@ export default function PaymentsPage() {
                       <Badge
                         variant={payment.is_active ? "success" : "outline"}
                       >
-                        {payment.is_active ? "Active" : "Inactive"}
+                {payment.is_active ? labels.active : labels.inactive}
                       </Badge>
                     </div>
 
                     {/* ─ Due date section ─ */}
                     <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                      <p className="text-xs text-dark-300">Day of month</p>
+                      <p className="text-xs text-dark-300">{labels.dayOfMonth}</p>
                       <p className="text-sm font-semibold text-white">
                         {payment.day_of_month}
                       </p>
                       <div className="flex items-center gap-2 text-xs text-dark-400">
                         <CalendarDays className="h-3.5 w-3.5" />
                         <span>
-                          Next due: {formatDate(displayDate)}
+                          {labels.nextDue}: {formatDate(displayDate)}
                           <span className="ml-1.5 text-dark-300">
                             ({relativeLabel})
                           </span>
@@ -547,7 +548,7 @@ export default function PaymentsPage() {
                         {payment.description}
                       </p>
                     ) : (
-                      <p className="text-xs text-dark-400">No description</p>
+                      <p className="text-xs text-dark-400">{labels.noDescription}</p>
                     )}
 
                     {/* ─ Actions ─ */}
@@ -558,7 +559,7 @@ export default function PaymentsPage() {
                         className="flex-1"
                         onClick={() => openEditDialog(payment)}
                       >
-                        Edit
+                        {labels.edit}
                       </Button>
                       <Button
                         variant={payment.is_active ? "secondary" : "default"}
@@ -569,12 +570,12 @@ export default function PaymentsPage() {
                         {payment.is_active ? (
                           <>
                             <Pause className="h-3.5 w-3.5" />
-                            Pause
+                            {labels.inactive}
                           </>
                         ) : (
                           <>
                             <Play className="h-3.5 w-3.5" />
-                            Resume
+                            {labels.active}
                           </>
                         )}
                       </Button>
@@ -601,7 +602,7 @@ export default function PaymentsPage() {
           <DialogClose onClose={() => setDialogOpen(false)} />
           <DialogHeader>
             <DialogTitle>
-              {editingPayment ? "Edit Payment" : "Add Payment"}
+              {editingPayment ? labels.editPayment : labels.addPayment}
             </DialogTitle>
           </DialogHeader>
 
@@ -612,11 +613,11 @@ export default function PaymentsPage() {
                 htmlFor="name"
                 className="mb-1.5 block text-sm font-medium text-dark-300"
               >
-                Name
+                {labels.name}
               </label>
               <Input
                 id="name"
-                placeholder="Netflix, Spotify..."
+                placeholder={`${labels.name}, Netflix, Spotify...`}
                 {...register("name")}
               />
               <FormError message={errors.name?.message} />
@@ -629,7 +630,7 @@ export default function PaymentsPage() {
                   htmlFor="amount"
                   className="mb-1.5 block text-sm font-medium text-dark-300"
                 >
-                  Amount
+                  {labels.amount}
                 </label>
                 <Input
                   id="amount"
@@ -646,11 +647,13 @@ export default function PaymentsPage() {
                   htmlFor="day_of_month"
                   className="mb-1.5 block text-sm font-medium text-dark-300"
                 >
-                  Day of month
+                  {labels.dayOfMonth}
                 </label>
                 <AppSelect
                   id="day_of_month"
                   value={String(dayOfMonthField)}
+                  placeholder={labels.dayOfMonth}
+                  emptyLabel={labels.noMatchingOptions}
                   onValueChange={(next) => {
                     setValue("day_of_month", Number(next), {
                       shouldDirty: true,
@@ -658,7 +661,7 @@ export default function PaymentsPage() {
                     });
                   }}
                   options={daySelectOptions}
-                  searchPlaceholder="Type day (1-31)..."
+                  searchPlaceholder={`${labels.dayOfMonth}...`}
                 />
                 <FormError message={errors.day_of_month?.message} />
               </div>
@@ -671,11 +674,13 @@ export default function PaymentsPage() {
                   htmlFor="payment_method"
                   className="mb-1.5 block text-sm font-medium text-dark-300"
                 >
-                  Pay via
+                  {labels.paymentMethod}
                 </label>
                 <AppSelect
                   id="payment_method"
                   value={paymentMethodField}
+                  placeholder={labels.paymentMethod}
+                  emptyLabel={labels.noMatchingOptions}
                   onValueChange={(next) => {
                     setValue(
                       "payment_method",
@@ -684,7 +689,7 @@ export default function PaymentsPage() {
                     );
                   }}
                   options={paymentMethodSelectOptions}
-                  searchPlaceholder="Type payment method..."
+                  searchPlaceholder={`${labels.paymentMethod}...`}
                 />
                 <FormError message={errors.payment_method?.message} />
               </div>
@@ -694,11 +699,13 @@ export default function PaymentsPage() {
                   htmlFor="currency"
                   className="mb-1.5 block text-sm font-medium text-dark-300"
                 >
-                  Currency
+                  {labels.currency}
                 </label>
                 <AppSelect
                   id="currency"
                   value={currencyField}
+                  placeholder={labels.currency}
+                  emptyLabel={labels.noMatchingOptions}
                   onValueChange={(next) => {
                     setValue(
                       "currency",
@@ -707,7 +714,7 @@ export default function PaymentsPage() {
                     );
                   }}
                   groups={currencySelectGroups}
-                  searchPlaceholder="Type currency..."
+                  searchPlaceholder={`${labels.currency}...`}
                 />
                 <FormError message={errors.currency?.message} />
               </div>
@@ -719,13 +726,13 @@ export default function PaymentsPage() {
                 htmlFor="description"
                 className="mb-1.5 block text-sm font-medium text-dark-300"
               >
-                Description
+                {labels.description}
               </label>
               <textarea
                 id="description"
                 rows={3}
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-dark-400"
-                placeholder="Optional note"
+                placeholder={labels.optional}
                 {...register("description")}
               />
               <FormError message={errors.description?.message} />
@@ -734,9 +741,9 @@ export default function PaymentsPage() {
             {/* Active toggle */}
             <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3">
               <div>
-                <p className="text-sm font-medium text-white">Active status</p>
+                  <p className="text-sm font-medium text-white">{labels.active}</p>
                 <p className="text-xs text-dark-400">
-                  Bật/tắt nhắc nhở thanh toán
+                  {labels.enablePushReminders}
                 </p>
               </div>
 
@@ -750,7 +757,7 @@ export default function PaymentsPage() {
                 className={`relative h-7 w-12 rounded-full transition ${
                   isActiveField ? "bg-accent-green" : "bg-dark-600"
                 }`}
-                aria-label="Toggle active status"
+                aria-label={labels.active}
                 aria-pressed={isActiveField}
               >
                 <span
@@ -768,18 +775,18 @@ export default function PaymentsPage() {
                 variant="outline"
                 onClick={() => setDialogOpen(false)}
               >
-                Cancel
+                {labels.cancel}
               </Button>
               <Button type="submit" disabled={saving} className="gap-2">
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving...
+                    {labels.save}
                   </>
                 ) : (
                   <>
                     <Check className="h-4 w-4" />
-                    {editingPayment ? "Update" : "Create"}
+                    {editingPayment ? labels.update : labels.create}
                   </>
                 )}
               </Button>

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/components/providers/auth-provider";
+import { LanguageProvider } from "@/components/providers/language-provider";
 import { PlatformBootstrap } from "@/components/providers/platform-bootstrap";
 
 export const metadata: Metadata = {
@@ -31,22 +32,24 @@ export default function RootLayout({
   return (
     <html lang="vi" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
-        <AuthProvider>
-          <PlatformBootstrap />
-          {children}
-          <Toaster
-            position="top-center"
-            toastOptions={{
-              style: {
-                background: "rgba(8, 16, 34, 0.88)",
-                border: "1px solid rgba(148, 196, 255, 0.28)",
-                color: "#e8f3ff",
-                backdropFilter: "blur(14px)",
-              },
-            }}
-            richColors
-          />
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <PlatformBootstrap />
+            {children}
+            <Toaster
+              position="top-center"
+              toastOptions={{
+                style: {
+                  background: "rgba(8, 16, 34, 0.88)",
+                  border: "1px solid rgba(148, 196, 255, 0.28)",
+                  color: "#e8f3ff",
+                  backdropFilter: "blur(14px)",
+                },
+              }}
+              richColors
+            />
+          </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );
