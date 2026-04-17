@@ -61,6 +61,29 @@ const intervalUnitOptions: AppSelectOption[] = [
   { value: "month", label: "Tháng" },
   { value: "year", label: "Năm" },
 ];
+const reminderPresetMinutes = [60, 180, 360, 720, 1440, 2880, 4320, 10080];
+
+function formatOffsetLabel(minutes: number): string {
+  if (minutes % 1440 === 0) {
+    const days = minutes / 1440;
+    return days === 1 ? "Trước 1 ngày" : `Trước ${days} ngày`;
+  }
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return hours === 1 ? "Trước 1 giờ" : `Trước ${hours} giờ`;
+  }
+  return `Trước ${minutes} phút`;
+}
+
+function normalizeOffsets(value: unknown, fallback: number[] = [1440]): number[] {
+  if (!Array.isArray(value)) return fallback;
+  const parsed = value
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item) && item >= 0)
+    .map((item) => Math.floor(item));
+  if (parsed.length === 0) return fallback;
+  return Array.from(new Set(parsed)).sort((a, b) => a - b);
+}
 
 const paymentMethodOptions = [
   { value: "visa", label: "VISA" },
@@ -165,6 +188,7 @@ export default function PaymentsPage() {
       billing_anchor_date: new Date().toISOString().slice(0, 10),
       billing_interval_unit: "month",
       billing_interval_count: 1,
+      reminder_offsets_minutes: [1440],
       day_of_month: 1,
       currency: "VND",
       description: "",
@@ -186,7 +210,10 @@ export default function PaymentsPage() {
   const paymentMethodField =
     useWatch({ control, name: "payment_method" }) ?? "visa";
   const currencyField = useWatch({ control, name: "currency" }) ?? "VND";
+  const reminderOffsetsField = normalizeOffsets(useWatch({ control, name: "reminder_offsets_minutes" }), [1440]);
   const editFromQuery = searchParams.get("edit");
+  const [customReminderValue, setCustomReminderValue] = useState("1");
+  const [customReminderUnit, setCustomReminderUnit] = useState<"hour" | "day">("day");
 
   // ─── Fetch ───────────────────────────────────────────────
 
@@ -262,6 +289,7 @@ export default function PaymentsPage() {
       billing_anchor_date: new Date().toISOString().slice(0, 10),
       billing_interval_unit: "month",
       billing_interval_count: 1,
+      reminder_offsets_minutes: [1440],
       day_of_month: 1,
       currency: "VND",
       description: "",
@@ -283,6 +311,7 @@ export default function PaymentsPage() {
           new Date().toISOString().slice(0, 10),
         billing_interval_unit: payment.billing_interval_unit ?? "month",
         billing_interval_count: payment.billing_interval_count ?? 1,
+        reminder_offsets_minutes: normalizeOffsets(payment.reminder_offsets_minutes, [1440]),
         day_of_month: payment.day_of_month,
         currency: payment.currency ?? "VND",
         description: payment.description ?? "",
@@ -356,6 +385,7 @@ export default function PaymentsPage() {
       billing_anchor_date: values.billing_anchor_date,
       billing_interval_unit: values.billing_interval_unit,
       billing_interval_count: values.billing_interval_count,
+      reminder_offsets_minutes: normalizeOffsets(values.reminder_offsets_minutes, [1440]),
       day_of_month: derivedDayOfMonth,
       description: values.description?.trim() || null,
       is_active: values.is_active,
@@ -538,6 +568,9 @@ export default function PaymentsPage() {
                       </p>
                       <p className="text-xs text-dark-400">
                         Bắt đầu: {formatDate(payment.billing_anchor_date)}
+                      </p>
+                      <p className="text-xs text-dark-400">
+                        Nhắc: {normalizeOffsets(payment.reminder_offsets_minutes, [1440]).map((item) => formatOffsetLabel(item)).join(", ")}
                       </p>
                       <div className="flex items-center gap-2 text-xs text-dark-400">
                         <CalendarDays className="h-3.5 w-3.5" />
@@ -772,6 +805,75 @@ export default function PaymentsPage() {
                 />
                 <FormError message={errors.currency?.message} />
               </div>
+            </div>
+
+            {/* Reminder offsets */}
+            <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-sm font-medium text-white">Mốc nhắc cho payment này</p>
+              <div className="flex flex-wrap gap-2">
+                {reminderPresetMinutes.map((offset) => {
+                  const active = reminderOffsetsField.includes(offset);
+                  return (
+                    <Button
+                      key={offset}
+                      type="button"
+                      size="sm"
+                      variant={active ? "default" : "outline"}
+                      onClick={() => {
+                        const next = active
+                          ? reminderOffsetsField.filter((value) => value !== offset)
+                          : [...reminderOffsetsField, offset];
+                        setValue("reminder_offsets_minutes", normalizeOffsets(next, [1440]), {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                      }}
+                    >
+                      {formatOffsetLabel(offset)}
+                    </Button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={customReminderValue}
+                  onChange={(event) => setCustomReminderValue(event.target.value)}
+                  className="h-10 w-20 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white"
+                />
+                <select
+                  value={customReminderUnit}
+                  onChange={(event) => setCustomReminderUnit(event.target.value as "hour" | "day")}
+                  className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white"
+                >
+                  <option value="hour">Giờ</option>
+                  <option value="day">Ngày</option>
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const parsed = Number(customReminderValue);
+                    if (!Number.isFinite(parsed) || parsed <= 0) {
+                      toast.error("Offset không hợp lệ");
+                      return;
+                    }
+                    const minutes = customReminderUnit === "day" ? Math.floor(parsed * 1440) : Math.floor(parsed * 60);
+                    const next = [...reminderOffsetsField, minutes];
+                    setValue("reminder_offsets_minutes", normalizeOffsets(next, [1440]), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                >
+                  Thêm mốc
+                </Button>
+              </div>
+              <p className="text-xs text-dark-400">
+                Đang chọn: {reminderOffsetsField.map((item) => formatOffsetLabel(item)).join(", ")}
+              </p>
+              <FormError message={errors.reminder_offsets_minutes?.message as string | undefined} />
             </div>
 
             {/* Description */}

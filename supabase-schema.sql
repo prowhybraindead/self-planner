@@ -4,6 +4,18 @@
 -- Personal project: 1 user, RLS = auth.uid() = user_id
 -- ============================================================
 
+-- ─── RESET FULL (drop sạch trước khi tạo lại) ───────────────
+-- CẢNH BÁO: xóa toàn bộ dữ liệu các bảng của SelfPlanner
+DROP TRIGGER IF EXISTS on_user_created ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user();
+
+DROP TABLE IF EXISTS public.calendar_events CASCADE;
+DROP TABLE IF EXISTS public.timeline_events CASCADE;
+DROP TABLE IF EXISTS public.recurring_payments CASCADE;
+DROP TABLE IF EXISTS public.user_settings CASCADE;
+
+DROP FUNCTION IF EXISTS public.set_updated_at();
+
 -- Required for gen_random_uuid()
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -31,6 +43,7 @@ CREATE TABLE IF NOT EXISTS public.recurring_payments (
   billing_interval_unit  text NOT NULL DEFAULT 'month'
                          CHECK (billing_interval_unit IN ('day', 'month', 'year')),
   billing_interval_count integer NOT NULL DEFAULT 1 CHECK (billing_interval_count >= 1),
+  reminder_offsets_minutes jsonb NOT NULL DEFAULT '[1440]'::jsonb,
   day_of_month           integer NOT NULL CHECK (day_of_month BETWEEN 1 AND 31),
   description            text,
   is_active              boolean NOT NULL DEFAULT true,
@@ -45,6 +58,7 @@ ALTER TABLE public.recurring_payments ADD COLUMN IF NOT EXISTS currency text NOT
 ALTER TABLE public.recurring_payments ADD COLUMN IF NOT EXISTS billing_anchor_date date;
 ALTER TABLE public.recurring_payments ADD COLUMN IF NOT EXISTS billing_interval_unit text;
 ALTER TABLE public.recurring_payments ADD COLUMN IF NOT EXISTS billing_interval_count integer;
+ALTER TABLE public.recurring_payments ADD COLUMN IF NOT EXISTS reminder_offsets_minutes jsonb;
 ALTER TABLE public.recurring_payments ADD COLUMN IF NOT EXISTS next_due_date date;
 
 UPDATE public.recurring_payments
@@ -63,6 +77,7 @@ WHERE billing_anchor_date IS NULL;
 
 UPDATE public.recurring_payments SET billing_interval_unit = 'month' WHERE billing_interval_unit IS NULL;
 UPDATE public.recurring_payments SET billing_interval_count = 1 WHERE billing_interval_count IS NULL;
+UPDATE public.recurring_payments SET reminder_offsets_minutes = '[1440]'::jsonb WHERE reminder_offsets_minutes IS NULL;
 
 ALTER TABLE public.recurring_payments ALTER COLUMN billing_anchor_date SET DEFAULT current_date;
 ALTER TABLE public.recurring_payments ALTER COLUMN billing_anchor_date SET NOT NULL;
@@ -70,6 +85,8 @@ ALTER TABLE public.recurring_payments ALTER COLUMN billing_interval_unit SET DEF
 ALTER TABLE public.recurring_payments ALTER COLUMN billing_interval_unit SET NOT NULL;
 ALTER TABLE public.recurring_payments ALTER COLUMN billing_interval_count SET DEFAULT 1;
 ALTER TABLE public.recurring_payments ALTER COLUMN billing_interval_count SET NOT NULL;
+ALTER TABLE public.recurring_payments ALTER COLUMN reminder_offsets_minutes SET DEFAULT '[1440]'::jsonb;
+ALTER TABLE public.recurring_payments ALTER COLUMN reminder_offsets_minutes SET NOT NULL;
 
 DO $$
 BEGIN
@@ -91,6 +108,18 @@ BEGIN
     ALTER TABLE public.recurring_payments
       ADD CONSTRAINT recurring_payments_billing_interval_count_check
       CHECK (billing_interval_count >= 1);
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'recurring_payments_reminder_offsets_type_check'
+  ) THEN
+    ALTER TABLE public.recurring_payments
+      ADD CONSTRAINT recurring_payments_reminder_offsets_type_check
+      CHECK (jsonb_typeof(reminder_offsets_minutes) = 'array');
   END IF;
 END
 $$;
@@ -154,6 +183,7 @@ CREATE TABLE IF NOT EXISTS public.timeline_events (
   description text,
   date        date NOT NULL,
   time_of_day text,
+  reminder_offsets_minutes jsonb NOT NULL DEFAULT '[]'::jsonb,
   status      text NOT NULL DEFAULT 'pending'
               CHECK (status IN ('pending', 'done', 'cancelled')),
   category    text,
@@ -162,6 +192,10 @@ CREATE TABLE IF NOT EXISTS public.timeline_events (
 );
 
 ALTER TABLE public.timeline_events ADD COLUMN IF NOT EXISTS time_of_day text;
+ALTER TABLE public.timeline_events ADD COLUMN IF NOT EXISTS reminder_offsets_minutes jsonb;
+UPDATE public.timeline_events SET reminder_offsets_minutes = '[]'::jsonb WHERE reminder_offsets_minutes IS NULL;
+ALTER TABLE public.timeline_events ALTER COLUMN reminder_offsets_minutes SET DEFAULT '[]'::jsonb;
+ALTER TABLE public.timeline_events ALTER COLUMN reminder_offsets_minutes SET NOT NULL;
 
 DO $$
 BEGIN
@@ -174,6 +208,18 @@ BEGIN
         time_of_day IS NULL
         OR time_of_day ~ '^([01][0-9]|2[0-3]):([0-5][0-9])$'
       );
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'timeline_events_reminder_offsets_type_check'
+  ) THEN
+    ALTER TABLE public.timeline_events
+      ADD CONSTRAINT timeline_events_reminder_offsets_type_check
+      CHECK (jsonb_typeof(reminder_offsets_minutes) = 'array');
   END IF;
 END
 $$;

@@ -51,6 +51,12 @@ function normalizeRecurringPayment(
         ? row.billing_interval_unit
         : "month",
     billing_interval_count: Number(row.billing_interval_count ?? 1) || 1,
+    reminder_offsets_minutes: Array.isArray(row.reminder_offsets_minutes)
+      ? row.reminder_offsets_minutes
+          .map((value) => Number(value))
+          .filter((value) => Number.isFinite(value) && value >= 0)
+          .map((value) => Math.floor(value))
+      : [1440],
     day_of_month: Number(row.day_of_month ?? 1),
     description:
       typeof row.description === "string" ? row.description : null,
@@ -107,6 +113,7 @@ function applyRecurringPaymentFallbacks(
     billing_anchor_date: string;
     billing_interval_unit: string;
     billing_interval_count: number;
+    reminder_offsets_minutes: number[];
     next_due_date?: string | null;
   }
 ) {
@@ -125,6 +132,9 @@ function applyRecurringPaymentFallbacks(
   }
   if (strippedColumns.has("billing_interval_count")) {
     merged.billing_interval_count = payload.billing_interval_count;
+  }
+  if (strippedColumns.has("reminder_offsets_minutes")) {
+    merged.reminder_offsets_minutes = payload.reminder_offsets_minutes;
   }
   if (strippedColumns.has("next_due_date")) {
     merged.next_due_date = payload.next_due_date ?? null;
@@ -268,6 +278,7 @@ export async function upsertPayment(
     billing_anchor_date: string;
     billing_interval_unit: "day" | "month" | "year";
     billing_interval_count: number;
+    reminder_offsets_minutes: number[];
     day_of_month: number;
     currency: string;
     description?: string | null;
@@ -285,6 +296,7 @@ export async function upsertPayment(
     billing_anchor_date: payload.billing_anchor_date,
     billing_interval_unit: payload.billing_interval_unit,
     billing_interval_count: payload.billing_interval_count,
+    reminder_offsets_minutes: payload.reminder_offsets_minutes,
     day_of_month: payload.day_of_month,
     currency: payload.currency,
     description: payload.description ?? null,
@@ -313,6 +325,7 @@ export async function upsertPayment(
         billing_anchor_date: payload.billing_anchor_date,
         billing_interval_unit: payload.billing_interval_unit,
         billing_interval_count: payload.billing_interval_count,
+        reminder_offsets_minutes: payload.reminder_offsets_minutes,
         next_due_date: payload.next_due_date,
       })
     );
@@ -342,6 +355,7 @@ export async function upsertPayment(
       billing_anchor_date: payload.billing_anchor_date,
       billing_interval_unit: payload.billing_interval_unit,
       billing_interval_count: payload.billing_interval_count,
+      reminder_offsets_minutes: payload.reminder_offsets_minutes,
       next_due_date: payload.next_due_date,
     })
   );

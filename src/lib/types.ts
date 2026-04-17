@@ -29,6 +29,7 @@ export const paymentSchema = z.object({
   billing_anchor_date: z.string().min(1, "Ngày bắt đầu là bắt buộc"),
   billing_interval_unit: billingIntervalUnitSchema.default("month"),
   billing_interval_count: z.coerce.number().int().min(1, "Chu kỳ tối thiểu là 1").max(3650, "Chu kỳ quá lớn"),
+  reminder_offsets_minutes: z.array(z.number().int().min(0)).default([1440]),
   day_of_month: z.coerce.number().min(1, "Ngày từ 1-31").max(31, "Ngày từ 1-31"),
   currency: z.enum(["VND", "USD", "EUR", "GBP", "JPY", "SGD", "AUD"]).default("VND"),
   description: z.string().max(500).optional(),
@@ -48,6 +49,7 @@ export interface RecurringPayment {
   billing_anchor_date: string;
   billing_interval_unit: BillingIntervalUnit;
   billing_interval_count: number;
+  reminder_offsets_minutes: number[];
   day_of_month: number;
   description: string | null;
   is_active: boolean;
@@ -72,6 +74,7 @@ export const timelineEventSchema = z.object({
     .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Giờ không hợp lệ")
     .or(z.literal(""))
     .optional(),
+  reminder_offsets_minutes: z.array(z.number().int().min(0)).default([]),
   status: z.enum(["pending", "done", "cancelled"]).default("pending"),
   category: z.string().max(50).optional(),
 });
@@ -86,6 +89,7 @@ export interface TimelineEvent {
   description: string | null;
   date: string;
   time_of_day: string | null;
+  reminder_offsets_minutes: number[];
   status: TimelineEventStatus;
   category: string | null;
   created_at: string;

@@ -24,6 +24,7 @@ class RecurringPaymentBase(BaseModel):
     billing_anchor_date: Date = Field(default_factory=Date.today)
     billing_interval_unit: str = "month"
     billing_interval_count: int = Field(default=1, ge=1, le=3650)
+    reminder_offsets_minutes: list[int] = Field(default_factory=lambda: [1440])
     day_of_month: int = Field(ge=1, le=31)
     description: str | None = None
     is_active: bool = True
@@ -42,6 +43,7 @@ class RecurringPaymentUpdate(BaseModel):
     billing_anchor_date: Date | None = None
     billing_interval_unit: str | None = None
     billing_interval_count: int | None = Field(default=None, ge=1, le=3650)
+    reminder_offsets_minutes: list[int] | None = None
     day_of_month: int | None = Field(default=None, ge=1, le=31)
     description: str | None = None
     is_active: bool | None = None
@@ -93,6 +95,7 @@ class TimelineEventBase(BaseModel):
     description: str | None = None
     date: Date
     time_of_day: str | None = None
+    reminder_offsets_minutes: list[int] = Field(default_factory=list)
     status: TimelineStatus = "pending"
     category: str | None = None
 
@@ -106,6 +109,7 @@ class TimelineEventUpdate(BaseModel):
     description: str | None = None
     date: Date | None = None
     time_of_day: str | None = None
+    reminder_offsets_minutes: list[int] | None = None
     status: TimelineStatus | None = None
     category: str | None = None
 

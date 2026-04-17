@@ -74,3 +74,45 @@ class EmailService:
             self.last_error = "Failed to send email"
             logger.exception("Failed to send payment due email")
             return False
+
+    def send_timeline_reminder_email(
+        self,
+        to_email: str,
+        title: str,
+        date_label: str,
+    ) -> bool:
+        if not self.is_enabled():
+            self.last_error = "SMTP is not configured"
+            return False
+
+        try:
+            message = EmailMessage()
+            message["Subject"] = f"[SelfPlanner] Nhac timeline: {title}"
+            message["From"] = self.settings.SMTP_FROM_EMAIL
+            message["To"] = to_email
+            message.set_content(
+                "\n".join(
+                    [
+                        "Xin chao anh,",
+                        "",
+                        "Anh co mot timeline event sap den han.",
+                        f"- Tieu de: {title}",
+                        f"- Thoi gian: {date_label}",
+                        "",
+                        "Mo SelfPlanner de cap nhat trang thai.",
+                    ]
+                )
+            )
+
+            with smtplib.SMTP(self.settings.SMTP_HOST, self.settings.SMTP_PORT, timeout=15) as smtp:
+                if self.settings.SMTP_USE_TLS:
+                    smtp.starttls()
+                smtp.login(self.settings.SMTP_USERNAME, self.settings.SMTP_PASSWORD)
+                smtp.send_message(message)
+
+            self.last_error = None
+            return True
+        except Exception:
+            self.last_error = "Failed to send timeline email"
+            logger.exception("Failed to send timeline reminder email")
+            return False

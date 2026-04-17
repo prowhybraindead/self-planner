@@ -79,3 +79,31 @@ class NotificationService:
         except Exception:
             logger.exception("Failed to send payment due notification")
             return False
+
+    def send_timeline_reminder_notification(
+        self,
+        fcm_token: str,
+        title: str,
+        date_label: str,
+    ) -> bool:
+        if not self.enabled:
+            return False
+
+        try:
+            payload = messaging.Message(
+                token=fcm_token,
+                notification=messaging.Notification(
+                    title="Nhac timeline",
+                    body=f"{title} • {date_label}",
+                ),
+                data={
+                    "type": "timeline_reminder",
+                    "title": title,
+                    "date": date_label,
+                },
+            )
+            messaging.send(payload)
+            return True
+        except Exception:
+            logger.exception("Failed to send timeline reminder notification")
+            return False

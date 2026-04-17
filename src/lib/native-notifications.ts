@@ -88,8 +88,7 @@ export async function clearScheduledPaymentReminders(): Promise<number> {
 }
 
 export async function syncRecurringPaymentReminders(
-  payments: RecurringPayment[],
-  reminderOffsetsMinutes: number[]
+  payments: RecurringPayment[]
 ): Promise<ReminderSyncResult> {
   if (!isCapacitorNativeRuntime()) {
     return { ok: false, reason: "unsupported" };
@@ -101,18 +100,6 @@ export async function syncRecurringPaymentReminders(
   }
 
   const cancelled = await clearScheduledPaymentReminders();
-  const offsets = Array.from(
-    new Set(
-      reminderOffsetsMinutes
-        .map((value) => Number(value))
-        .filter((value) => Number.isFinite(value) && value >= 0)
-        .map((value) => Math.floor(value))
-    )
-  ).sort((a, b) => a - b);
-  if (offsets.length === 0) {
-    return { ok: true, scheduled: 0, cancelled };
-  }
-
   const now = new Date();
   const horizon = new Date(now);
   horizon.setDate(horizon.getDate() + 90);
@@ -129,6 +116,19 @@ export async function syncRecurringPaymentReminders(
     let guard = 0;
     while (dueDate <= horizon && guard < 300) {
       if (dueDate >= now) {
+        const offsets = Array.from(
+          new Set(
+            (Array.isArray(payment.reminder_offsets_minutes) ? payment.reminder_offsets_minutes : [1440])
+              .map((value) => Number(value))
+              .filter((value) => Number.isFinite(value) && value >= 0)
+              .map((value) => Math.floor(value))
+          )
+        ).sort((a, b) => a - b);
+
+        if (offsets.length === 0) {
+          offsets.push(1440);
+        }
+
         for (const offsetMinutes of offsets) {
           const notifyAt = new Date(dueDate.getTime() - offsetMinutes * 60 * 1000);
           notifyAt.setSeconds(0, 0);

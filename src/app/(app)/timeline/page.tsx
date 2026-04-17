@@ -39,6 +39,28 @@ import {
 
 const statusFilters = ["all", "pending", "done", "cancelled"] as const;
 const categoryPresets = ["finance", "work", "personal", "health", "learning", "other"] as const;
+const timelineReminderPresets = [15, 30, 60, 180, 360, 720, 1440];
+
+function normalizeOffsets(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  const parsed = value
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item) && item >= 0)
+    .map((item) => Math.floor(item));
+  return Array.from(new Set(parsed)).sort((a, b) => a - b);
+}
+
+function formatOffsetLabel(minutes: number): string {
+  if (minutes % 1440 === 0) {
+    const days = minutes / 1440;
+    return days === 1 ? "Trước 1 ngày" : `Trước ${days} ngày`;
+  }
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return hours === 1 ? "Trước 1 giờ" : `Trước ${hours} giờ`;
+  }
+  return `Trước ${minutes} phút`;
+}
 
 function normalizeCategory(value: string | null | undefined): string {
   return (value ?? "other").trim().toLowerCase() || "other";
@@ -139,11 +161,15 @@ export default function TimelinePage() {
       description: "",
       date: getTodayDateInputValue(),
       time_of_day: getCurrentTimeInputValue(),
+      reminder_offsets_minutes: [],
       status: "pending",
       category: "personal",
     },
   });
   const formStatusField = useWatch({ control, name: "status" }) ?? "pending";
+  const formReminderOffsets = normalizeOffsets(useWatch({ control, name: "reminder_offsets_minutes" }));
+  const [customReminderValue, setCustomReminderValue] = useState("30");
+  const [customReminderUnit, setCustomReminderUnit] = useState<"minute" | "hour" | "day">("minute");
   const timelineStatusOptions = useMemo<AppSelectOption[]>(
     () => [
       { value: "pending", label: labels.statusPending },
@@ -258,6 +284,7 @@ export default function TimelinePage() {
       description: "",
       date: getTodayDateInputValue(),
       time_of_day: getCurrentTimeInputValue(),
+      reminder_offsets_minutes: [],
       status: "pending",
       category: "personal",
     });
@@ -271,6 +298,7 @@ export default function TimelinePage() {
       description: event.description ?? "",
       date: event.date,
       time_of_day: event.time_of_day ?? getCurrentTimeInputValue(),
+      reminder_offsets_minutes: normalizeOffsets(event.reminder_offsets_minutes),
       status: event.status,
       category: event.category ?? "personal",
     });
@@ -289,6 +317,7 @@ export default function TimelinePage() {
       description: values.description?.trim() || null,
       date: values.date,
       time_of_day: values.time_of_day?.trim() || null,
+      reminder_offsets_minutes: normalizeOffsets(values.reminder_offsets_minutes),
       status: values.status,
       category: values.category?.trim().toLowerCase() || null,
     };
@@ -521,6 +550,11 @@ export default function TimelinePage() {
                             {formatDate(event.date)}
                             {event.time_of_day ? ` ${event.time_of_day}` : ""}
                           </span>
+                          {event.reminder_offsets_minutes?.length > 0 ? (
+                            <span>
+                              Nhắc: {normalizeOffsets(event.reminder_offsets_minutes).map((item) => formatOffsetLabel(item)).join(", ")}
+                            </span>
+                          ) : null}
                         </div>
 
                         {event.description ? (
@@ -699,6 +733,80 @@ export default function TimelinePage() {
                 {...register("description")}
               />
               <FormError message={errors.description?.message} />
+            </div>
+
+            <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-sm font-medium text-white">Mốc nhắc cho event này</p>
+              <div className="flex flex-wrap gap-2">
+                {timelineReminderPresets.map((offset) => {
+                  const active = formReminderOffsets.includes(offset);
+                  return (
+                    <Button
+                      key={offset}
+                      type="button"
+                      size="sm"
+                      variant={active ? "default" : "outline"}
+                      onClick={() => {
+                        const next = active
+                          ? formReminderOffsets.filter((value) => value !== offset)
+                          : [...formReminderOffsets, offset];
+                        setValue("reminder_offsets_minutes", normalizeOffsets(next), {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                      }}
+                    >
+                      {formatOffsetLabel(offset)}
+                    </Button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={customReminderValue}
+                  onChange={(event) => setCustomReminderValue(event.target.value)}
+                  className="h-10 w-20 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white"
+                />
+                <select
+                  value={customReminderUnit}
+                  onChange={(event) => setCustomReminderUnit(event.target.value as "minute" | "hour" | "day")}
+                  className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white"
+                >
+                  <option value="minute">Phút</option>
+                  <option value="hour">Giờ</option>
+                  <option value="day">Ngày</option>
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const parsed = Number(customReminderValue);
+                    if (!Number.isFinite(parsed) || parsed <= 0) {
+                      toast.error("Offset không hợp lệ");
+                      return;
+                    }
+                    const minutes =
+                      customReminderUnit === "day"
+                        ? Math.floor(parsed * 1440)
+                        : customReminderUnit === "hour"
+                          ? Math.floor(parsed * 60)
+                          : Math.floor(parsed);
+                    const next = [...formReminderOffsets, minutes];
+                    setValue("reminder_offsets_minutes", normalizeOffsets(next), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                >
+                  Thêm mốc
+                </Button>
+              </div>
+              <p className="text-xs text-dark-400">
+                Đang chọn: {formReminderOffsets.length > 0 ? formReminderOffsets.map((item) => formatOffsetLabel(item)).join(", ") : "Không nhắc"}
+              </p>
+              <FormError message={errors.reminder_offsets_minutes?.message as string | undefined} />
             </div>
 
             <div className="flex justify-end gap-2 pt-1">
