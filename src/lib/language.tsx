@@ -24,6 +24,7 @@ type TranslationKey =
   | "backendOnline"
   | "backendOffline"
   | "backendChecking"
+  | "backendOnlineFun"
   | "backendUsingSupabase"
   | "backendServer"
   | "mainServer1"
@@ -218,6 +219,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     backendOnline: "Backend online",
     backendOffline: "Backend offline",
     backendChecking: "Đang kiểm tra...",
+    backendOnlineFun: "Server chạy mượt, sẵn sàng chiến mọi tác vụ.",
     backendUsingSupabase: "Đang dùng trực tiếp Supabase",
     backendServer: "Máy chủ backend",
     mainServer1: "Main Server 1",
@@ -412,6 +414,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     backendOnline: "Backend online",
     backendOffline: "Backend offline",
     backendChecking: "Checking...",
+    backendOnlineFun: "Server is cruising smoothly and ready for action.",
     backendUsingSupabase: "Using Supabase directly",
     backendServer: "Backend server",
     mainServer1: "Main Server 1",

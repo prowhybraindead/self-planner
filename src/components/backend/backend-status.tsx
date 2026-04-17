@@ -44,6 +44,13 @@ async function checkBackendHealth(signal?: AbortSignal): Promise<BackendHealthRe
   };
 }
 
+function normalizeHealthyMessage(message: string | undefined, fallback: string) {
+  if (!message) return fallback;
+  const normalized = message.trim().toLowerCase();
+  if (normalized === "ok" || normalized === "healthy") return fallback;
+  return message;
+}
+
 export function BackendStatusBadge({
   className,
   compact = false,
@@ -74,7 +81,11 @@ export function BackendStatusBadge({
       const result = await checkBackendHealth(controller.signal);
       setState(result.ok ? "healthy" : "offline");
       setCheckedAt(result.checkedAt);
-      setMessage(result.ok ? result.message ?? labels.backendOnline : labels.backendOffline);
+      setMessage(
+        result.ok
+          ? normalizeHealthyMessage(result.message, labels.backendOnlineFun)
+          : labels.backendOffline
+      );
     } catch {
       setState("offline");
       setCheckedAt(new Date().toISOString());
@@ -82,7 +93,7 @@ export function BackendStatusBadge({
     } finally {
       window.clearTimeout(timeout);
     }
-  }, [labels.backendChecking, labels.backendOffline, labels.backendOnline, labels.backendUsingSupabase]);
+  }, [labels.backendChecking, labels.backendOffline, labels.backendOnlineFun, labels.backendUsingSupabase]);
 
   React.useEffect(() => {
     void refresh();
@@ -158,7 +169,11 @@ export function BackendStatusCard() {
       const result = await checkBackendHealth(controller.signal);
       setState(result.ok ? "healthy" : "offline");
       setCheckedAt(result.checkedAt);
-      setMessage(result.ok ? result.message ?? "Backend online" : "Backend responded with an error");
+      setMessage(
+        result.ok
+          ? normalizeHealthyMessage(result.message, labels.backendOnlineFun)
+          : "Backend responded with an error"
+      );
     } catch {
       setState("offline");
       setCheckedAt(new Date().toISOString());
@@ -166,7 +181,7 @@ export function BackendStatusCard() {
     } finally {
       window.clearTimeout(timeout);
     }
-  }, []);
+  }, [labels.backendOnlineFun]);
 
   React.useEffect(() => {
     void refresh();
