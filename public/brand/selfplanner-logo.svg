@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 240" role="img" aria-label="SelfPlanner Logo">
+  <defs>
+    <linearGradient id="brandNebula" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60A5FA" />
+      <stop offset="45%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#34D399" />
+    </linearGradient>
+    <radialGradient id="brandGlow" cx="50%" cy="42%" r="58%">
+      <stop offset="0%" stop-color="#DBEEFF" stop-opacity="0.95" />
+      <stop offset="70%" stop-color="#60A5FA" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#60A5FA" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#E5F2FF" />
+      <stop offset="45%" stop-color="#BBD9FF" />
+      <stop offset="100%" stop-color="#8FD2FF" />
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="200" height="200" rx="54" fill="#050A16" />
+  <circle cx="110" cy="108" r="70" fill="url(#brandGlow)" />
+  <path d="M35 123c14-31 45-49 81-49 28 0 54 9 74 25-14 31-45 49-81 49-28 0-54-9-74-25Z" fill="url(#brandNebula)" opacity="0.95" />
+  <circle cx="92" cy="108" r="18" fill="#E9F6FF" />
+  <circle cx="92" cy="108" r="11" fill="#A7D7FF" />
+  <circle cx="92" cy="108" r="6" fill="#38BDF8" />
+  <circle cx="156" cy="74" r="4" fill="#E8F4FF" />
+  <circle cx="168" cy="86" r="2.8" fill="#CDE7FF" />
+  <circle cx="58" cy="74" r="3.4" fill="#CBE6FF" />
+  <path d="M45 167c20 12 42 18 65 18 23 0 44-6 65-18" fill="none" stroke="#60A5FA" stroke-width="7" stroke-linecap="round" opacity="0.9" />
+  <text x="250" y="116" fill="url(#textGrad)" font-size="76" font-weight="700" font-family="'Space Grotesk', 'Plus Jakarta Sans', 'Avenir Next', sans-serif" letter-spacing="0.5">SelfPlanner</text>
+  <text x="252" y="155" fill="#7FA3D1" font-size="24" font-weight="500" font-family="'Space Grotesk', 'Plus Jakarta Sans', 'Avenir Next', sans-serif" letter-spacing="3.2">PERSONAL LIFE ORBIT</text>
+</svg>

@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# internal docs
+AI.md
+
+# fb secrets
+service-account.json
+
+# python backend
+backend/.venv/
+backend/__pycache__/
+backend/**/*.py[cod]
+*.pyc

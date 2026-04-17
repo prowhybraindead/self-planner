@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" role="img" aria-label="SelfPlanner Icon">
+  <defs>
+    <linearGradient id="brandNebula" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60A5FA" />
+      <stop offset="45%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#34D399" />
+    </linearGradient>
+    <radialGradient id="brandGlow" cx="50%" cy="42%" r="58%">
+      <stop offset="0%" stop-color="#DBEEFF" stop-opacity="0.95" />
+      <stop offset="70%" stop-color="#60A5FA" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#60A5FA" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect x="8" y="8" width="204" height="204" rx="54" fill="#050A16" />
+  <circle cx="110" cy="108" r="70" fill="url(#brandGlow)" />
+  <path d="M35 123c14-31 45-49 81-49 28 0 54 9 74 25-14 31-45 49-81 49-28 0-54-9-74-25Z" fill="url(#brandNebula)" opacity="0.95" />
+  <circle cx="92" cy="108" r="18" fill="#E9F6FF" />
+  <circle cx="92" cy="108" r="11" fill="#A7D7FF" />
+  <circle cx="92" cy="108" r="6" fill="#38BDF8" />
+  <circle cx="156" cy="74" r="4" fill="#E8F4FF" />
+  <circle cx="168" cy="86" r="2.8" fill="#CDE7FF" />
+  <circle cx="58" cy="74" r="3.4" fill="#CBE6FF" />
+</svg>

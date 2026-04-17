@@ -1,0 +1,664 @@
+"use client";
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, useWatch } from "react-hook-form";
+import {
+  Bell,
+  CalendarClock,
+  CheckCircle2,
+  Circle,
+  Clock,
+  CreditCard,
+  Edit3,
+  FileText,
+  Loader2,
+  Plus,
+  Target,
+  Trash2,
+  XCircle,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
+import { formatDate } from "@/lib/utils";
+import { getCurrentUserId, supabase } from "@/lib/supabase";
+import {
+  type TimelineEventFormValues,
+  timelineEventSchema,
+  type TimelineEvent,
+  type TimelineEventStatus,
+  type TimelineEventValues,
+} from "@/lib/types";
+
+const statusFilters = ["all", "pending", "done", "cancelled"] as const;
+const categoryPresets = ["finance", "work", "personal", "health", "learning", "other"] as const;
+const timelineStatusOptions: AppSelectOption[] = [
+  { value: "pending", label: "Pending" },
+  { value: "done", label: "Done" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+function normalizeCategory(value: string | null | undefined): string {
+  return (value ?? "other").trim().toLowerCase() || "other";
+}
+
+function getCategoryMeta(category: string | null) {
+  const normalized = normalizeCategory(category);
+
+  if (normalized.includes("finance") || normalized.includes("payment")) {
+    return { icon: CreditCard, colorClass: "text-emerald-300 bg-emerald-500/20 ring-emerald-400/30" };
+  }
+  if (normalized.includes("work") || normalized.includes("project")) {
+    return { icon: Target, colorClass: "text-sky-300 bg-sky-500/20 ring-sky-400/30" };
+  }
+  if (normalized.includes("personal") || normalized.includes("life")) {
+    return { icon: Bell, colorClass: "text-indigo-300 bg-indigo-500/20 ring-indigo-400/30" };
+  }
+  if (normalized.includes("health")) {
+    return { icon: CalendarClock, colorClass: "text-fuchsia-300 bg-fuchsia-500/20 ring-fuchsia-400/30" };
+  }
+
+  return { icon: FileText, colorClass: "text-slate-300 bg-slate-500/20 ring-slate-400/30" };
+}
+
+function FormError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="mt-1 text-xs text-red-300">{message}</p>;
+}
+
+function getTodayDateInputValue(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export default function TimelinePage() {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
+  const [statusFilter, setStatusFilter] = useState<(typeof statusFilters)[number]>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  const {
+    control,
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm<TimelineEventFormValues, unknown, TimelineEventValues>({
+    resolver: zodResolver(timelineEventSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      date: getTodayDateInputValue(),
+      status: "pending",
+      category: "personal",
+    },
+  });
+  const formStatusField = useWatch({ control, name: "status" }) ?? "pending";
+
+  const fetchTimelineEvents = useCallback(async (id: string) => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("timeline_events")
+      .select("*")
+      .eq("user_id", id)
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      toast.error("Khong the tai timeline", { description: error.message });
+      setLoading(false);
+      return;
+    }
+
+    setEvents((data ?? []) as TimelineEvent[]);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function init() {
+      try {
+        const id = await getCurrentUserId();
+        if (!mounted) return;
+        setUserId(id);
+        await fetchTimelineEvents(id);
+      } catch (error) {
+        if (!mounted) return;
+        toast.error("Khong the xac thuc nguoi dung", {
+          description: error instanceof Error ? error.message : "Vui long dang nhap lai",
+        });
+        setLoading(false);
+      }
+    }
+
+    void init();
+
+    return () => {
+      mounted = false;
+    };
+  }, [fetchTimelineEvents]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`timeline-events-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "timeline_events",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          void fetchTimelineEvents(userId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchTimelineEvents, userId]);
+
+  const categories = useMemo(() => {
+    const fromDb = events
+      .map((event) => event.category)
+      .filter((value): value is string => Boolean(value))
+      .map((value) => normalizeCategory(value));
+
+    return Array.from(new Set([...categoryPresets, ...fromDb]));
+  }, [events]);
+
+  const filteredEvents = useMemo(() => {
+    return events.filter((event) => {
+      const byStatus = statusFilter === "all" || event.status === statusFilter;
+      const byCategory = categoryFilter === "all" || normalizeCategory(event.category) === categoryFilter;
+      return byStatus && byCategory;
+    });
+  }, [categoryFilter, events, statusFilter]);
+
+  const doneCount = useMemo(() => events.filter((event) => event.status === "done").length, [events]);
+
+  const cycleStatusFilter = useCallback(
+    (direction: 1 | -1) => {
+      const currentIndex = statusFilters.indexOf(statusFilter);
+      const nextIndex =
+        (currentIndex + direction + statusFilters.length) % statusFilters.length;
+      setStatusFilter(statusFilters[nextIndex]);
+    },
+    [statusFilter]
+  );
+
+  const openCreateDialog = () => {
+    setEditingEvent(null);
+    reset({
+      title: "",
+      description: "",
+      date: getTodayDateInputValue(),
+      status: "pending",
+      category: "personal",
+    });
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (event: TimelineEvent) => {
+    setEditingEvent(event);
+    reset({
+      title: event.title,
+      description: event.description ?? "",
+      date: event.date,
+      status: event.status,
+      category: event.category ?? "personal",
+    });
+    setDialogOpen(true);
+  };
+
+  const onSubmit = async (values: TimelineEventValues) => {
+    if (!userId) {
+      toast.error("Khong tim thay user", { description: "Vui long dang nhap lai" });
+      return;
+    }
+
+    setSaving(true);
+    const payload = {
+      title: values.title.trim(),
+      description: values.description?.trim() || null,
+      date: values.date,
+      status: values.status,
+      category: values.category?.trim().toLowerCase() || null,
+    };
+
+    if (editingEvent) {
+      const { error } = await supabase
+        .from("timeline_events")
+        .update(payload)
+        .eq("id", editingEvent.id)
+        .eq("user_id", userId);
+
+      if (error) {
+        toast.error("Cap nhat su kien that bai", { description: error.message });
+        setSaving(false);
+        return;
+      }
+
+      await fetchTimelineEvents(userId);
+      toast.success("Cap nhat su kien thanh cong");
+      setDialogOpen(false);
+      setSaving(false);
+      return;
+    }
+
+    const { error } = await supabase.from("timeline_events").insert({
+      ...payload,
+      user_id: userId,
+    });
+
+    if (error) {
+      toast.error("Tao su kien that bai", { description: error.message });
+      setSaving(false);
+      return;
+    }
+
+    await fetchTimelineEvents(userId);
+    toast.success("Da them su kien moi");
+    setDialogOpen(false);
+    setSaving(false);
+  };
+
+  const setStatus = async (event: TimelineEvent, nextStatus: TimelineEventStatus) => {
+    if (!userId) return;
+
+    const { error } = await supabase
+      .from("timeline_events")
+      .update({ status: nextStatus })
+      .eq("id", event.id)
+      .eq("user_id", userId);
+
+    if (error) {
+      toast.error("Khong the cap nhat trang thai", { description: error.message });
+      return;
+    }
+
+    toast.success("Trang thai da duoc cap nhat");
+  };
+
+  const deleteEvent = async (event: TimelineEvent) => {
+    if (!userId) return;
+    if (!window.confirm(`Xoa su kien "${event.title}"?`)) return;
+
+    const { error } = await supabase
+      .from("timeline_events")
+      .delete()
+      .eq("id", event.id)
+      .eq("user_id", userId);
+
+    if (error) {
+      toast.error("Xoa su kien that bai", { description: error.message });
+      return;
+    }
+
+    await fetchTimelineEvents(userId);
+    toast.success("Da xoa su kien");
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    setTouchStartX(event.changedTouches[0]?.clientX ?? null);
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (touchStartX === null) return;
+    const endX = event.changedTouches[0]?.clientX ?? touchStartX;
+    const diff = endX - touchStartX;
+    setTouchStartX(null);
+
+    if (Math.abs(diff) < 55) return;
+    cycleStatusFilter(diff < 0 ? 1 : -1);
+  };
+
+  return (
+    <div className="space-y-6 pb-28 md:pb-0">
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+        className="flex flex-wrap items-end justify-between gap-4"
+      >
+        <div>
+          <h1 className="text-2xl font-semibold text-white sm:text-3xl">Timeline</h1>
+          <p className="mt-1 text-sm text-dark-300">
+            {events.length} events total, {doneCount} completed
+          </p>
+          <p className="mt-1 text-xs text-dark-400 md:hidden">
+            Swipe left/right on timeline list to switch status filter quickly.
+          </p>
+        </div>
+        <Button onClick={openCreateDialog} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Add Event
+        </Button>
+      </motion.div>
+
+      <Card>
+        <CardContent className="space-y-4 p-4 sm:p-5">
+          <div className="flex flex-wrap gap-2">
+            {statusFilters.map((filter) => (
+              <Button
+                key={filter}
+                size="sm"
+                variant={statusFilter === filter ? "default" : "outline"}
+                className="capitalize"
+                onClick={() => setStatusFilter(filter)}
+              >
+                {filter}
+              </Button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant={categoryFilter === "all" ? "default" : "outline"}
+              onClick={() => setCategoryFilter("all")}
+            >
+              All categories
+            </Button>
+            {categories.map((category) => (
+              <Button
+                key={category}
+                size="sm"
+                variant={categoryFilter === category ? "default" : "outline"}
+                className="capitalize"
+                onClick={() => setCategoryFilter(category)}
+              >
+                {category}
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {loading ? (
+        <Card>
+          <CardContent className="flex items-center justify-center py-16 text-dark-300">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </CardContent>
+        </Card>
+      ) : filteredEvents.length === 0 ? (
+        <Card onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+          <CardContent className="py-16 text-center">
+            <Clock className="mx-auto mb-3 h-10 w-10 text-dark-400" />
+            <p className="text-sm text-dark-300">No events match your current filters.</p>
+            <Button onClick={openCreateDialog} variant="outline" className="mt-4">
+              Create first event
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+          {filteredEvents.map((event, index) => {
+            const meta = getCategoryMeta(event.category);
+            const Icon = meta.icon;
+            const isDone = event.status === "done";
+            const isCancelled = event.status === "cancelled";
+
+            return (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.02, duration: 0.2 }}
+              >
+                <Card className="overflow-hidden">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1 ${meta.colorClass}`}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </div>
+
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {isDone ? (
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
+                          ) : (
+                            <Circle className="h-4 w-4 shrink-0 text-dark-400" />
+                          )}
+                          <p
+                            className={`min-w-0 truncate text-sm font-medium ${
+                              isDone || isCancelled ? "text-dark-400 line-through" : "text-white"
+                            }`}
+                          >
+                            {event.title}
+                          </p>
+
+                          <Badge
+                            variant={
+                              event.status === "done"
+                                ? "success"
+                                : event.status === "cancelled"
+                                  ? "danger"
+                                  : "outline"
+                            }
+                            className="capitalize"
+                          >
+                            {event.status}
+                          </Badge>
+
+                          <Badge variant="outline" className="capitalize">
+                            {normalizeCategory(event.category)}
+                          </Badge>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-dark-400">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5" />
+                            {formatDate(event.date)}
+                          </span>
+                        </div>
+
+                        {event.description ? (
+                          <p className="text-xs text-dark-300">{event.description}</p>
+                        ) : null}
+
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <Button
+                            size="sm"
+                            variant={isDone ? "outline" : "secondary"}
+                            onClick={() => {
+                              void setStatus(event, isDone ? "pending" : "done");
+                            }}
+                          >
+                            {isDone ? "Mark pending" : "Mark done"}
+                          </Button>
+
+                          {event.status !== "cancelled" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1"
+                              onClick={() => {
+                                void setStatus(event, "cancelled");
+                              }}
+                            >
+                              <XCircle className="h-3.5 w-3.5" />
+                              Cancel
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                void setStatus(event, "pending");
+                              }}
+                            >
+                              Re-open
+                            </Button>
+                          )}
+
+                          <Button size="sm" variant="outline" className="gap-1" onClick={() => openEditDialog(event)}>
+                            <Edit3 className="h-3.5 w-3.5" />
+                            Edit
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 border-red-400/30 text-red-300 hover:bg-red-500/10"
+                            onClick={() => {
+                              void deleteEvent(event);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="fixed inset-x-0 bottom-16 z-30 px-4 md:hidden">
+        <div className="mx-auto flex max-w-xl items-center gap-2 rounded-2xl border border-sky-200/20 bg-dark-900/80 p-2 shadow-xl backdrop-blur-xl">
+          <Button size="sm" className="flex-1 gap-1" onClick={openCreateDialog}>
+            <Plus className="h-3.5 w-3.5" />
+            Add
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 capitalize"
+            onClick={() => cycleStatusFilter(1)}
+          >
+            Status: {statusFilter}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onClick={() => {
+              setStatusFilter("all");
+              setCategoryFilter("all");
+            }}
+          >
+            Reset
+          </Button>
+        </div>
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogClose onClose={() => setDialogOpen(false)} />
+          <DialogHeader>
+            <DialogTitle>{editingEvent ? "Edit Event" : "Add Event"}</DialogTitle>
+          </DialogHeader>
+
+          <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+            <div>
+              <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-dark-300">
+                Title
+              </label>
+              <Input id="title" placeholder="Prepare monthly budget review" {...register("title")} />
+              <FormError message={errors.title?.message} />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="date" className="mb-1.5 block text-sm font-medium text-dark-300">
+                  Date
+                </label>
+                <Input id="date" type="date" {...register("date")} />
+                <FormError message={errors.date?.message} />
+              </div>
+
+              <div>
+                <label htmlFor="status" className="mb-1.5 block text-sm font-medium text-dark-300">
+                  Status
+                </label>
+                <AppSelect
+                  id="status"
+                  value={formStatusField}
+                  onValueChange={(next) => {
+                    setValue("status", next as TimelineEventValues["status"], {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                  options={timelineStatusOptions}
+                  searchPlaceholder="Type status..."
+                />
+                <FormError message={errors.status?.message} />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="category" className="mb-1.5 block text-sm font-medium text-dark-300">
+                Category
+              </label>
+              <Input id="category" list="timeline-categories" placeholder="finance, work, personal..." {...register("category")} />
+              <datalist id="timeline-categories">
+                {categories.map((category) => (
+                  <option key={category} value={category} />
+                ))}
+              </datalist>
+              <FormError message={errors.category?.message} />
+            </div>
+
+            <div>
+              <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-dark-300">
+                Description
+              </label>
+              <textarea
+                id="description"
+                rows={3}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-dark-400"
+                placeholder="Optional note"
+                {...register("description")}
+              />
+              <FormError message={errors.description?.message} />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving} className="gap-2">
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>{editingEvent ? "Update Event" : "Create Event"}</>
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
