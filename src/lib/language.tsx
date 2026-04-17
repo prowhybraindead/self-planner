@@ -26,6 +26,7 @@ type TranslationKey =
   | "backendChecking"
   | "backendUsingSupabase"
   | "backendServer"
+  | "mainServer1"
   | "refresh"
   | "lastCheck"
   | "add"
@@ -219,6 +220,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     backendChecking: "Đang kiểm tra...",
     backendUsingSupabase: "Đang dùng trực tiếp Supabase",
     backendServer: "Máy chủ backend",
+    mainServer1: "Main Server 1",
     refresh: "Làm mới",
     lastCheck: "Kiểm tra gần nhất",
     add: "Thêm",
@@ -412,6 +414,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     backendChecking: "Checking...",
     backendUsingSupabase: "Using Supabase directly",
     backendServer: "Backend server",
+    mainServer1: "Main Server 1",
     refresh: "Refresh",
     lastCheck: "Last check",
     add: "Add",

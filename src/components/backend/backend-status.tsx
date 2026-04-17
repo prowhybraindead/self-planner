@@ -194,7 +194,7 @@ export function BackendStatusCard() {
           <div className="space-y-1">
             <p className="text-sm font-semibold text-white">{labels.backendServer}</p>
             <p className="text-sm text-dark-300">{message}</p>
-            <p className="text-[11px] text-dark-400">{API_URL}</p>
+            <p className="text-[11px] text-dark-400">{labels.mainServer1}</p>
             {checkedAt ? (
               <p className="text-[11px] text-dark-400">
                 {labels.lastCheck}: {new Date(checkedAt).toLocaleString(language === "vi" ? "vi-VN" : "en-US")}
