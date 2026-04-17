@@ -21,6 +21,7 @@
 
 # production
 /build
+/buildapp/
 
 # misc
 .DS_Store
@@ -47,6 +48,7 @@ AI.md
 
 # fb secrets
 service-account.json
+google-services.json
 
 # python backend
 backend/.venv/

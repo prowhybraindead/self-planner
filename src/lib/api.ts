@@ -1,17 +1,9 @@
 const DATA_PROVIDER = (process.env.NEXT_PUBLIC_DATA_PROVIDER || "supabase").toLowerCase();
 const RAW_API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace(/\/+$/, "");
 
-function isCapacitorNativeRuntime(): boolean {
-  if (typeof window === "undefined") return false;
-  const cap = (window as Window & { Capacitor?: { getPlatform?: () => string } }).Capacitor;
-  const platform = cap?.getPlatform?.();
-  return platform === "android" || platform === "ios";
-}
-
 export function getApiBaseUrl(): string {
   if (DATA_PROVIDER !== "backend") return RAW_API_URL;
-  if (isCapacitorNativeRuntime()) return RAW_API_URL;
-  return "/api/backend";
+  return RAW_API_URL;
 }
 
 export const API_URL = getApiBaseUrl();
