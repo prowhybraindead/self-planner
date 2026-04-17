@@ -1,5 +1,7 @@
 const DATA_PROVIDER = (process.env.NEXT_PUBLIC_DATA_PROVIDER || "supabase").toLowerCase();
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace(/\/+$/, "");
+const RAW_API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace(/\/+$/, "");
+
+export const API_URL = DATA_PROVIDER === "backend" ? "/api" : RAW_API_URL;
 
 export const isBackendApiEnabled = DATA_PROVIDER === "backend";
 export const dataProviderMode = DATA_PROVIDER;
