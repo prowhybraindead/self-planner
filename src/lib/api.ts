@@ -1,12 +1,31 @@
 const DATA_PROVIDER = (process.env.NEXT_PUBLIC_DATA_PROVIDER || "supabase").toLowerCase();
-const RAW_API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace(/\/+$/, "");
 
-export function getApiBaseUrl(): string {
-  if (DATA_PROVIDER !== "backend") return RAW_API_URL;
-  return RAW_API_URL;
+const WEB_API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api/backend").replace(/\/+$/, "");
+const NATIVE_API_URL = (
+  process.env.NEXT_PUBLIC_API_URL_NATIVE ||
+  "http://180.93.103.98:25424/api"
+).replace(/\/+$/, "");
+
+function isCapacitorNative(): boolean {
+  if (typeof window === "undefined") return false;
+  const cap = (window as typeof window & {
+    Capacitor?: {
+      getPlatform?: () => string;
+      isNativePlatform?: () => boolean;
+    };
+  }).Capacitor;
+  if (!cap) return false;
+  if (typeof cap.isNativePlatform === "function" && cap.isNativePlatform()) return true;
+  const platform = cap.getPlatform?.();
+  return platform === "android" || platform === "ios";
 }
 
-export const API_URL = getApiBaseUrl();
+export function getApiBaseUrl(): string {
+  if (DATA_PROVIDER !== "backend") return WEB_API_URL;
+  return isCapacitorNative() ? NATIVE_API_URL : WEB_API_URL;
+}
+
+export const API_URL = WEB_API_URL;
 
 export const isBackendApiEnabled = DATA_PROVIDER === "backend";
 export const dataProviderMode = DATA_PROVIDER;
