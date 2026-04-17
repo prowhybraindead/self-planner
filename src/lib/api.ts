@@ -1,7 +1,20 @@
 const DATA_PROVIDER = (process.env.NEXT_PUBLIC_DATA_PROVIDER || "supabase").toLowerCase();
 const RAW_API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api").replace(/\/+$/, "");
 
-export const API_URL = DATA_PROVIDER === "backend" ? "/api" : RAW_API_URL;
+function isCapacitorNativeRuntime(): boolean {
+  if (typeof window === "undefined") return false;
+  const cap = (window as Window & { Capacitor?: { getPlatform?: () => string } }).Capacitor;
+  const platform = cap?.getPlatform?.();
+  return platform === "android" || platform === "ios";
+}
+
+export function getApiBaseUrl(): string {
+  if (DATA_PROVIDER !== "backend") return RAW_API_URL;
+  if (isCapacitorNativeRuntime()) return RAW_API_URL;
+  return "/api";
+}
+
+export const API_URL = getApiBaseUrl();
 
 export const isBackendApiEnabled = DATA_PROVIDER === "backend";
 export const dataProviderMode = DATA_PROVIDER;
@@ -13,11 +26,11 @@ type RequestOptions = {
 };
 
 class ApiClient {
-  private baseUrl: string;
+  private getBaseUrl: () => string;
   private token: string | null = null;
 
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
+  constructor(getBaseUrl: () => string) {
+    this.getBaseUrl = getBaseUrl;
   }
 
   setToken(token: string) {
@@ -48,7 +61,7 @@ class ApiClient {
       config.body = JSON.stringify(body);
     }
 
-    const response = await fetch(`${this.baseUrl}${this.normalizeEndpoint(endpoint)}`, config);
+    const response = await fetch(`${this.getBaseUrl()}${this.normalizeEndpoint(endpoint)}`, config);
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: "Request failed" }));
@@ -79,4 +92,4 @@ class ApiClient {
   }
 }
 
-export const api = new ApiClient(API_URL);
+export const api = new ApiClient(getApiBaseUrl);

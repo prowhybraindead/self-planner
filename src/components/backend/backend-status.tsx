@@ -4,7 +4,7 @@ import * as React from "react";
 import { Activity, AlertTriangle, RefreshCcw, Server } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { API_URL, isBackendApiEnabled } from "@/lib/api";
+import { getApiBaseUrl, isBackendApiEnabled } from "@/lib/api";
 import { useLanguage } from "@/lib/language";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +17,7 @@ type BackendHealthResult = {
 };
 
 function getHealthEndpoint(): string {
-  return `${API_URL}/health`;
+  return `${getApiBaseUrl()}/health`;
 }
 
 async function checkBackendHealth(signal?: AbortSignal): Promise<BackendHealthResult> {
