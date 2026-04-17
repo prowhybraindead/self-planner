@@ -5,6 +5,10 @@
       "destination": "http://180.93.103.98:25424/api/:path*"
     },
     {
+      "source": "/api/health",
+      "destination": "http://180.93.103.98:25424/api/health"
+    },
+    {
       "source": "/health",
       "destination": "http://180.93.103.98:25424/health"
     }

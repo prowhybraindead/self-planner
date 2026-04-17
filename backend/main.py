@@ -63,6 +63,11 @@ def health() -> APIMessage:
     return APIMessage(message="ok")
 
 
+@app.get("/api/health", response_model=APIMessage)
+def api_health() -> APIMessage:
+    return APIMessage(message="ok")
+
+
 @app.post("/api/notifications/register-fcm", response_model=APIMessage)
 def register_fcm(
     payload: RegisterFCMRequest,

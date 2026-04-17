@@ -17,7 +17,7 @@ type BackendHealthResult = {
 };
 
 function getHealthEndpoint(): string {
-  return `${API_URL.replace(/\/api$/, "")}/health`;
+  return `${API_URL}/health`;
 }
 
 async function checkBackendHealth(signal?: AbortSignal): Promise<BackendHealthResult> {
