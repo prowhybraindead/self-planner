@@ -6,9 +6,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  format as fnsFormat,
-} from "date-fns";
-import {
   CalendarDays,
   Check,
   CreditCard,
@@ -44,6 +41,11 @@ import {
 } from "@/lib/types";
 import { formatDate, formatMoney, formatRelative } from "@/lib/utils";
 import {
+  computeNextDueDateFromSchedule,
+  computeNextDueDateIsoFromForm,
+  toYmdString,
+} from "@/lib/payment-schedule";
+import {
   getCurrentUserId,
   getCurrentUserPayments,
   subscribeToPayments,
@@ -54,11 +56,11 @@ import {
 
 // ─── Static option sets ──────────────────────────────────────
 
-const dayOptions = Array.from({ length: 31 }, (_, i) => i + 1);
-const daySelectOptions: AppSelectOption[] = dayOptions.map((day) => ({
-  value: String(day),
-  label: String(day),
-}));
+const intervalUnitOptions: AppSelectOption[] = [
+  { value: "day", label: "Ngày" },
+  { value: "month", label: "Tháng" },
+  { value: "year", label: "Năm" },
+];
 
 const paymentMethodOptions = [
   { value: "visa", label: "VISA" },
@@ -97,42 +99,9 @@ const currencySelectGroups: AppSelectGroup[] = [
   },
 ];
 
-// ─── Date helpers (using date-fns) ───────────────────────────
-
-function getLastDayOfMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-/** Compute the next due date for a given day_of_month using date-fns */
-function computeNextDueDateISO(dayOfMonth: number): string {
-  const now = new Date();
-  const todayDate = now.getDate();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-
-  const maxDayThisMonth = getLastDayOfMonth(currentYear, currentMonth);
-  const targetDayThisMonth = Math.min(dayOfMonth, maxDayThisMonth);
-
-  if (targetDayThisMonth >= todayDate) {
-    const d = new Date(currentYear, currentMonth, targetDayThisMonth);
-    return fnsFormat(d, "yyyy-MM-dd");
-  }
-
-  const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
-  const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
-  const maxDayNextMonth = getLastDayOfMonth(nextYear, nextMonth);
-  const targetDayNextMonth = Math.min(dayOfMonth, maxDayNextMonth);
-  const d = new Date(nextYear, nextMonth, targetDayNextMonth);
-
-  return fnsFormat(d, "yyyy-MM-dd");
-}
-
 /** Get display due date for a payment, fallback to computed */
 function getDisplayDueDate(payment: RecurringPayment): string {
-  if (payment.next_due_date) {
-    return payment.next_due_date;
-  }
-  return computeNextDueDateISO(payment.day_of_month);
+  return toYmdString(computeNextDueDateFromSchedule(payment));
 }
 
 /** Format payment method label */
@@ -193,6 +162,9 @@ export default function PaymentsPage() {
       name: "",
       amount: 0,
       payment_method: "visa",
+      billing_anchor_date: new Date().toISOString().slice(0, 10),
+      billing_interval_unit: "month",
+      billing_interval_count: 1,
       day_of_month: 1,
       currency: "VND",
       description: "",
@@ -201,7 +173,16 @@ export default function PaymentsPage() {
   });
 
   const isActiveField = useWatch({ control, name: "is_active" }) ?? true;
-  const dayOfMonthField = useWatch({ control, name: "day_of_month" }) ?? 1;
+  const billingAnchorDateField = String(
+    useWatch({ control, name: "billing_anchor_date" }) ??
+      new Date().toISOString().slice(0, 10)
+  );
+  const billingIntervalUnitField = String(
+    useWatch({ control, name: "billing_interval_unit" }) ?? "month"
+  );
+  const billingIntervalCountField = Number(
+    useWatch({ control, name: "billing_interval_count" }) ?? 1
+  );
   const paymentMethodField =
     useWatch({ control, name: "payment_method" }) ?? "visa";
   const currencyField = useWatch({ control, name: "currency" }) ?? "VND";
@@ -278,6 +259,9 @@ export default function PaymentsPage() {
       name: "",
       amount: 0,
       payment_method: "visa",
+      billing_anchor_date: new Date().toISOString().slice(0, 10),
+      billing_interval_unit: "month",
+      billing_interval_count: 1,
       day_of_month: 1,
       currency: "VND",
       description: "",
@@ -293,6 +277,12 @@ export default function PaymentsPage() {
         name: payment.name,
         amount: payment.amount,
         payment_method: payment.payment_method ?? "visa",
+        billing_anchor_date:
+          payment.billing_anchor_date ??
+          payment.next_due_date ??
+          new Date().toISOString().slice(0, 10),
+        billing_interval_unit: payment.billing_interval_unit ?? "month",
+        billing_interval_count: payment.billing_interval_count ?? 1,
         day_of_month: payment.day_of_month,
         currency: payment.currency ?? "VND",
         description: payment.description ?? "",
@@ -347,7 +337,14 @@ export default function PaymentsPage() {
 
     setSaving(true);
 
-    const nextDueDate = computeNextDueDateISO(values.day_of_month);
+    const anchorDate = new Date(`${values.billing_anchor_date}T00:00:00`);
+    const derivedDayOfMonth = Number.isNaN(anchorDate.getTime()) ? 1 : anchorDate.getDate();
+    const nextDueDate = computeNextDueDateIsoFromForm({
+      billing_anchor_date: values.billing_anchor_date,
+      billing_interval_unit: values.billing_interval_unit,
+      billing_interval_count: values.billing_interval_count,
+      day_of_month: derivedDayOfMonth,
+    });
     const amount = typeof values.amount === "number" && !isNaN(values.amount)
       ? values.amount
       : 0;
@@ -356,7 +353,10 @@ export default function PaymentsPage() {
       name: values.name.trim(),
       amount,
       payment_method: values.payment_method,
-      day_of_month: values.day_of_month,
+      billing_anchor_date: values.billing_anchor_date,
+      billing_interval_unit: values.billing_interval_unit,
+      billing_interval_count: values.billing_interval_count,
+      day_of_month: derivedDayOfMonth,
       description: values.description?.trim() || null,
       is_active: values.is_active,
       currency: values.currency,
@@ -527,9 +527,17 @@ export default function PaymentsPage() {
 
                     {/* ─ Due date section ─ */}
                     <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                      <p className="text-xs text-dark-300">{labels.dayOfMonth}</p>
+                      <p className="text-xs text-dark-300">Gói</p>
                       <p className="text-sm font-semibold text-white">
-                        {payment.day_of_month}
+                        Mỗi {payment.billing_interval_count}{" "}
+                        {payment.billing_interval_unit === "day"
+                          ? "ngày"
+                          : payment.billing_interval_unit === "year"
+                            ? "năm"
+                            : "tháng"}
+                      </p>
+                      <p className="text-xs text-dark-400">
+                        Bắt đầu: {formatDate(payment.billing_anchor_date)}
                       </p>
                       <div className="flex items-center gap-2 text-xs text-dark-400">
                         <CalendarDays className="h-3.5 w-3.5" />
@@ -623,7 +631,7 @@ export default function PaymentsPage() {
               <FormError message={errors.name?.message} />
             </div>
 
-            {/* Amount + Day of month */}
+            {/* Amount + Start date */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label
@@ -644,26 +652,72 @@ export default function PaymentsPage() {
 
               <div>
                 <label
-                  htmlFor="day_of_month"
+                  htmlFor="billing_anchor_date"
                   className="mb-1.5 block text-sm font-medium text-dark-300"
                 >
-                  {labels.dayOfMonth}
+                  Ngày bắt đầu
                 </label>
-                <AppSelect
-                  id="day_of_month"
-                  value={String(dayOfMonthField)}
-                  placeholder={labels.dayOfMonth}
-                  emptyLabel={labels.noMatchingOptions}
-                  onValueChange={(next) => {
-                    setValue("day_of_month", Number(next), {
+                <Input
+                  id="billing_anchor_date"
+                  type="date"
+                  value={billingAnchorDateField}
+                  onChange={(event) =>
+                    setValue("billing_anchor_date", event.target.value, {
                       shouldDirty: true,
                       shouldValidate: true,
-                    });
-                  }}
-                  options={daySelectOptions}
-                  searchPlaceholder={`${labels.dayOfMonth}...`}
+                    })
+                  }
                 />
-                <FormError message={errors.day_of_month?.message} />
+                <FormError message={errors.billing_anchor_date?.message} />
+              </div>
+            </div>
+
+            {/* Interval */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="billing_interval_count"
+                  className="mb-1.5 block text-sm font-medium text-dark-300"
+                >
+                  Chu kỳ
+                </label>
+                <Input
+                  id="billing_interval_count"
+                  type="number"
+                  min={1}
+                  value={billingIntervalCountField}
+                  onChange={(event) =>
+                    setValue("billing_interval_count", Number(event.target.value || "1"), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+                <FormError message={errors.billing_interval_count?.message} />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="billing_interval_unit"
+                  className="mb-1.5 block text-sm font-medium text-dark-300"
+                >
+                  Loại gói
+                </label>
+                <AppSelect
+                  id="billing_interval_unit"
+                  value={billingIntervalUnitField}
+                  placeholder="Loại gói"
+                  emptyLabel={labels.noMatchingOptions}
+                  onValueChange={(next) =>
+                    setValue("billing_interval_unit", next as PaymentValues["billing_interval_unit"], {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                  options={intervalUnitOptions}
+                  searchPlaceholder="Tìm loại gói..."
+                />
+                <FormError message={errors.billing_interval_unit?.message} />
               </div>
             </div>
 

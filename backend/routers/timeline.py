@@ -22,6 +22,7 @@ def list_timeline_events(user: UserContext = Depends(get_current_user)):
         .select("*")
         .eq("user_id", user.user_id)
         .order("date", desc=True)
+        .order("time_of_day", desc=True)
         .execute()
     )
     return result.data or []

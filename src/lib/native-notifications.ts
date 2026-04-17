@@ -1,6 +1,7 @@
 import { LocalNotifications } from "@capacitor/local-notifications";
 import type { RecurringPayment } from "@/lib/types";
 import { isCapacitorNativeRuntime } from "@/lib/platform";
+import { addBillingInterval, computeNextDueDateFromSchedule } from "@/lib/payment-schedule";
 
 const SCHEDULED_IDS_KEY = "selfplanner.localNotifications.ids.v1";
 
@@ -28,23 +29,9 @@ function setStoredIds(ids: number[]) {
   window.localStorage.setItem(SCHEDULED_IDS_KEY, JSON.stringify(ids));
 }
 
-function getLastDayOfMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-function computeDueDateForMonth(dayOfMonth: number, year: number, month: number): Date {
-  const day = Math.min(dayOfMonth, getLastDayOfMonth(year, month));
-  return new Date(year, month, day, 9, 0, 0, 0);
-}
-
 function computeInitialDueDate(payment: RecurringPayment): Date {
-  if (payment.next_due_date) {
-    const nextDue = new Date(`${payment.next_due_date}T09:00:00`);
-    if (!Number.isNaN(nextDue.getTime())) return nextDue;
-  }
-
-  const now = new Date();
-  return computeDueDateForMonth(payment.day_of_month, now.getFullYear(), now.getMonth());
+  const due = computeNextDueDateFromSchedule(payment, new Date());
+  return new Date(due.getFullYear(), due.getMonth(), due.getDate(), 9, 0, 0, 0);
 }
 
 function hashToNotificationId(input: string): number {
@@ -56,9 +43,9 @@ function hashToNotificationId(input: string): number {
   return Math.abs(hash) + 1;
 }
 
-function buildNotificationId(paymentId: string, dueDate: Date, leadDays: number): number {
+function buildNotificationId(paymentId: string, dueDate: Date, leadMinutes: number): number {
   const dateToken = `${dueDate.getFullYear()}-${dueDate.getMonth() + 1}-${dueDate.getDate()}`;
-  return hashToNotificationId(`${paymentId}:${dateToken}:${leadDays}`);
+  return hashToNotificationId(`${paymentId}:${dateToken}:${leadMinutes}`);
 }
 
 export async function getLocalNotificationPermissionState(): Promise<LocalPermissionState> {
@@ -102,7 +89,7 @@ export async function clearScheduledPaymentReminders(): Promise<number> {
 
 export async function syncRecurringPaymentReminders(
   payments: RecurringPayment[],
-  notifyBeforeDays: number
+  reminderOffsetsMinutes: number[]
 ): Promise<ReminderSyncResult> {
   if (!isCapacitorNativeRuntime()) {
     return { ok: false, reason: "unsupported" };
@@ -114,7 +101,15 @@ export async function syncRecurringPaymentReminders(
   }
 
   const cancelled = await clearScheduledPaymentReminders();
-  if (notifyBeforeDays <= 0) {
+  const offsets = Array.from(
+    new Set(
+      reminderOffsetsMinutes
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value >= 0)
+        .map((value) => Math.floor(value))
+    )
+  ).sort((a, b) => a - b);
+  if (offsets.length === 0) {
     return { ok: true, scheduled: 0, cancelled };
   }
 
@@ -130,37 +125,36 @@ export async function syncRecurringPaymentReminders(
   }> = [];
 
   for (const payment of payments.filter((item) => item.is_active)) {
-    const initialDue = computeInitialDueDate(payment);
+    let dueDate = computeInitialDueDate(payment);
+    let guard = 0;
+    while (dueDate <= horizon && guard < 300) {
+      if (dueDate >= now) {
+        for (const offsetMinutes of offsets) {
+          const notifyAt = new Date(dueDate.getTime() - offsetMinutes * 60 * 1000);
+          notifyAt.setSeconds(0, 0);
 
-    for (let monthOffset = 0; monthOffset < 4; monthOffset += 1) {
-      const dueDate = new Date(
-        initialDue.getFullYear(),
-        initialDue.getMonth() + monthOffset,
-        initialDue.getDate(),
-        9,
-        0,
-        0,
-        0
+          if (notifyAt.getTime() > now.getTime() + 60 * 1000) {
+            const id = buildNotificationId(payment.id, dueDate, offsetMinutes);
+            notifications.push({
+              id,
+              title: "SelfPlanner Payment Reminder",
+              body: `${payment.name} is due on ${dueDate.toLocaleDateString("vi-VN")}`,
+              schedule: {
+                at: notifyAt,
+                allowWhileIdle: true,
+              },
+            });
+          }
+        }
+      }
+
+      dueDate = addBillingInterval(
+        dueDate,
+        payment.billing_interval_unit ?? "month",
+        payment.billing_interval_count ?? 1
       );
-
-      if (dueDate < now || dueDate > horizon) continue;
-
-      const notifyAt = new Date(dueDate);
-      notifyAt.setDate(notifyAt.getDate() - notifyBeforeDays);
-      notifyAt.setHours(9, 0, 0, 0);
-
-      if (notifyAt.getTime() <= now.getTime() + 60 * 1000) continue;
-
-      const id = buildNotificationId(payment.id, dueDate, notifyBeforeDays);
-      notifications.push({
-        id,
-        title: "SelfPlanner Payment Reminder",
-        body: `${payment.name} is due on ${dueDate.toLocaleDateString("vi-VN")}`,
-        schedule: {
-          at: notifyAt,
-          allowWhileIdle: true,
-        },
-      });
+      dueDate.setHours(9, 0, 0, 0);
+      guard += 1;
     }
   }
 

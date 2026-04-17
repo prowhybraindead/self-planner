@@ -6,10 +6,7 @@ import { motion } from "framer-motion";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
-  addMonths,
   format as fnsFormat,
-  getDate,
-  isAfter,
   isBefore,
 } from "date-fns";
 import {
@@ -43,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, formatDate, formatMoney } from "@/lib/utils";
+import { computeNextDueDateFromSchedule } from "@/lib/payment-schedule";
 import {
   getCurrentUserId,
   getCurrentUserPayments,
@@ -87,53 +85,8 @@ const fxTrackedCurrencies = [
   "AUD",
 ] as const;
 
-// ─── Date helpers (using date-fns) ───────────────────────────
-
-function getLastDayOfMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
-}
-
 function computeDueDate(payment: RecurringPayment): Date {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  // Prefer stored next_due_date if still in the future
-  if (payment.next_due_date) {
-    const nextDueDate = new Date(`${payment.next_due_date}T00:00:00`);
-    if (
-      isAfter(nextDueDate, today) ||
-      getDate(nextDueDate) === getDate(today)
-    ) {
-      return nextDueDate;
-    }
-  }
-
-  const year = now.getFullYear();
-  const month = now.getMonth();
-
-  // Try this month
-  const thisMonthDay = Math.min(
-    payment.day_of_month,
-    getLastDayOfMonth(year, month)
-  );
-  const thisMonthDate = new Date(year, month, thisMonthDay);
-  if (
-    isAfter(thisMonthDate, today) ||
-    getDate(thisMonthDate) === getDate(today)
-  ) {
-    return thisMonthDate;
-  }
-
-  // Fallback: next month
-  const next = addMonths(now, 1);
-  const adjustedYear = next.getFullYear();
-  const adjustedMonth = next.getMonth();
-  const nextMonthDay = Math.min(
-    payment.day_of_month,
-    getLastDayOfMonth(adjustedYear, adjustedMonth)
-  );
-
-  return new Date(adjustedYear, adjustedMonth, nextMonthDay);
+  return computeNextDueDateFromSchedule(payment);
 }
 
 function toDaysLeft(target: Date): number {
@@ -543,8 +496,7 @@ export default function DashboardPage() {
       })
       .filter(
         (payment) =>
-          (isAfter(payment.dueDate, today) ||
-            getDate(payment.dueDate) === getDate(today)) &&
+          payment.dueDate >= today &&
           isBefore(payment.dueDate, horizon)
       )
       .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());

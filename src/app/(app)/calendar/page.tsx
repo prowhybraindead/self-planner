@@ -23,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { formatMoney } from "@/lib/utils";
+import { addBillingInterval, computeNextDueDateFromSchedule, toYmdString } from "@/lib/payment-schedule";
 import { getCurrentUserId, supabase } from "@/lib/supabase";
 import {
   type CalendarEventFormValues,
@@ -64,50 +65,41 @@ function addMonths(date: Date, count: number): Date {
   return new Date(date.getFullYear(), date.getMonth() + count, 1);
 }
 
-function getLastDayOfMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
-}
-
 function buildPaymentEvents(
   payments: RecurringPayment[],
   rangeStart: Date,
   rangeEnd: Date
 ): EventInput[] {
-  const months: { year: number; month: number }[] = [];
-  const pointer = startOfMonth(rangeStart);
-  const until = startOfMonth(rangeEnd);
-
-  while (pointer <= until) {
-    months.push({ year: pointer.getFullYear(), month: pointer.getMonth() });
-    pointer.setMonth(pointer.getMonth() + 1);
-  }
-
   return payments.flatMap((payment) => {
-    return months.flatMap(({ year, month }) => {
-      const day = Math.min(payment.day_of_month, getLastDayOfMonth(year, month));
-      const eventDate = new Date(year, month, day);
+    const events: EventInput[] = [];
+    let due = computeNextDueDateFromSchedule(payment, rangeStart);
+    let guard = 0;
 
-      if (eventDate < rangeStart || eventDate > rangeEnd) {
-        return [];
-      }
+    while (due <= rangeEnd && guard < 500) {
+      events.push({
+        id: `payment-${payment.id}-${toYmdString(due)}`,
+        title: `${payment.name} • ${formatMoney(Number(payment.amount), payment.currency)}`,
+        start: toLocalYmd(due),
+        allDay: true,
+        editable: false,
+        backgroundColor: "#0ea5e9",
+        borderColor: "#0ea5e9",
+        textColor: "#f8fafc",
+        extendedProps: {
+          source: "payment",
+          payment_id: payment.id,
+        },
+      } satisfies EventInput);
 
-      return [
-        {
-          id: `payment-${payment.id}-${year}-${month}`,
-          title: `${payment.name} • ${formatMoney(Number(payment.amount), payment.currency)}`,
-          start: toLocalYmd(eventDate),
-          allDay: true,
-          editable: false,
-          backgroundColor: "#0ea5e9",
-          borderColor: "#0ea5e9",
-          textColor: "#f8fafc",
-          extendedProps: {
-            source: "payment",
-            payment_id: payment.id,
-          },
-        } satisfies EventInput,
-      ];
-    });
+      due = addBillingInterval(
+        due,
+        payment.billing_interval_unit ?? "month",
+        payment.billing_interval_count ?? 1
+      );
+      guard += 1;
+    }
+
+    return events;
   });
 }
 
@@ -169,7 +161,7 @@ export default function CalendarPage() {
         .select("*")
         .eq("user_id", id)
         .eq("is_active", true)
-        .order("day_of_month", { ascending: true }),
+        .order("next_due_date", { ascending: true }),
     ]);
 
     if (eventsRes.error) {

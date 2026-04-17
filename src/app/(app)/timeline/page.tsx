@@ -106,6 +106,13 @@ function getTodayDateInputValue(): string {
   return `${year}-${month}-${day}`;
 }
 
+function getCurrentTimeInputValue(): string {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
 export default function TimelinePage() {
   const { labels } = useLanguage();
   const [userId, setUserId] = useState<string | null>(null);
@@ -131,6 +138,7 @@ export default function TimelinePage() {
       title: "",
       description: "",
       date: getTodayDateInputValue(),
+      time_of_day: getCurrentTimeInputValue(),
       status: "pending",
       category: "personal",
     },
@@ -152,6 +160,7 @@ export default function TimelinePage() {
       .select("*")
       .eq("user_id", id)
       .order("date", { ascending: false })
+      .order("time_of_day", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -248,6 +257,7 @@ export default function TimelinePage() {
       title: "",
       description: "",
       date: getTodayDateInputValue(),
+      time_of_day: getCurrentTimeInputValue(),
       status: "pending",
       category: "personal",
     });
@@ -260,6 +270,7 @@ export default function TimelinePage() {
       title: event.title,
       description: event.description ?? "",
       date: event.date,
+      time_of_day: event.time_of_day ?? getCurrentTimeInputValue(),
       status: event.status,
       category: event.category ?? "personal",
     });
@@ -277,6 +288,7 @@ export default function TimelinePage() {
       title: values.title.trim(),
       description: values.description?.trim() || null,
       date: values.date,
+      time_of_day: values.time_of_day?.trim() || null,
       status: values.status,
       category: values.category?.trim().toLowerCase() || null,
     };
@@ -507,6 +519,7 @@ export default function TimelinePage() {
                           <span className="flex items-center gap-1">
                             <Clock className="h-3.5 w-3.5" />
                             {formatDate(event.date)}
+                            {event.time_of_day ? ` ${event.time_of_day}` : ""}
                           </span>
                         </div>
 
@@ -629,6 +642,16 @@ export default function TimelinePage() {
                 <FormError message={errors.date?.message} />
               </div>
 
+              <div>
+                <label htmlFor="time_of_day" className="mb-1.5 block text-sm font-medium text-dark-300">
+                  Giờ phút
+                </label>
+                <Input id="time_of_day" type="time" {...register("time_of_day")} />
+                <FormError message={errors.time_of_day?.message} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="status" className="mb-1.5 block text-sm font-medium text-dark-300">
                   {labels.statusFilter}

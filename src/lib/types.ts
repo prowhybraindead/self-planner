@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+export const billingIntervalUnitSchema = z.enum(["day", "month", "year"]);
+export type BillingIntervalUnit = z.infer<typeof billingIntervalUnitSchema>;
+
 // ─── Auth ───
 export const loginSchema = z.object({
   email: z.string().email("Email không hợp lệ"),
@@ -23,6 +26,9 @@ export const paymentSchema = z.object({
   name: z.string().min(1, "Tên không được để trống").max(100),
   amount: z.coerce.number().min(0, "Số tiền phải lớn hơn hoặc bằng 0"),
   payment_method: z.enum(["visa", "mastercard", "paypal", "momo", "google_play", "bank_transfer"]),
+  billing_anchor_date: z.string().min(1, "Ngày bắt đầu là bắt buộc"),
+  billing_interval_unit: billingIntervalUnitSchema.default("month"),
+  billing_interval_count: z.coerce.number().int().min(1, "Chu kỳ tối thiểu là 1").max(3650, "Chu kỳ quá lớn"),
   day_of_month: z.coerce.number().min(1, "Ngày từ 1-31").max(31, "Ngày từ 1-31"),
   currency: z.enum(["VND", "USD", "EUR", "GBP", "JPY", "SGD", "AUD"]).default("VND"),
   description: z.string().max(500).optional(),
@@ -39,6 +45,9 @@ export interface RecurringPayment {
   amount: number;
   payment_method: "visa" | "mastercard" | "paypal" | "momo" | "google_play" | "bank_transfer";
   currency: "VND" | "USD" | "EUR" | "GBP" | "JPY" | "SGD" | "AUD";
+  billing_anchor_date: string;
+  billing_interval_unit: BillingIntervalUnit;
+  billing_interval_count: number;
   day_of_month: number;
   description: string | null;
   is_active: boolean;
@@ -58,6 +67,11 @@ export const timelineEventSchema = z.object({
   title: z.string().min(1, "Tiêu đề không được để trống").max(200),
   description: z.string().max(1000).optional(),
   date: z.string().min(1, "Ngày không được để trống"),
+  time_of_day: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Giờ không hợp lệ")
+    .or(z.literal(""))
+    .optional(),
   status: z.enum(["pending", "done", "cancelled"]).default("pending"),
   category: z.string().max(50).optional(),
 });
@@ -71,6 +85,7 @@ export interface TimelineEvent {
   title: string;
   description: string | null;
   date: string;
+  time_of_day: string | null;
   status: TimelineEventStatus;
   category: string | null;
   created_at: string;
@@ -112,6 +127,9 @@ export interface UserSettings {
   user_id: string;
   notify_before_days: number;
   fcm_token: string | null;
+  notification_email: string | null;
+  reminder_offsets_minutes: number[] | null;
+  timezone: string | null;
   created_at: string;
   updated_at: string;
 }

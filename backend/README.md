@@ -1,6 +1,6 @@
 # SelfPlanner Backend (FastAPI)
 
-Backend Python riêng cho SelfPlanner, chạy cùng Supabase và hỗ trợ cron + FCM push notification.
+Backend Python riêng cho SelfPlanner, chạy cùng Supabase và hỗ trợ cron + push notification (FCM + email SMTP).
 
 ## 1) Cài đặt và chạy local
 
@@ -35,6 +35,12 @@ SUPABASE_URL=...
 SUPABASE_SERVICE_KEY=...
 FIREBASE_CREDENTIALS_PATH=service-account.json
 FCM_PROJECT_ID=...
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
+SMTP_FROM_EMAIL=your_email@gmail.com
+SMTP_USE_TLS=true
 ```
 
 Khuyến nghị:
@@ -73,18 +79,24 @@ Base prefix: `/api`
   - `DELETE /api/timeline/{id}`
 - Notifications:
   - `POST /api/notifications/register-fcm`
+  - `GET /api/notifications/status`
 
 Auth:
 - Gửi `Authorization: Bearer <supabase_access_token>`
 - Backend verify JWT user bằng Supabase Auth.
 
-## 5) Cron job hằng ngày
+## 5) Cron job reminder
 
-Cron chạy lúc `00:05` theo timezone `APP_TIMEZONE`:
+Cron chạy mỗi giờ tại phút `05` theo timezone `APP_TIMEZONE`:
 - Quét `recurring_payments` với `is_active=true`
-- Nếu `day_of_month` trùng ngày hôm nay:
-  - cập nhật `next_due_date` sang tháng sau
-  - lấy `user_settings.fcm_token` và gửi push notification
+- Tính kỳ đến hạn theo `billing_anchor_date + interval`
+- Tính mốc nhắc theo múi giờ từng tài khoản `user_settings.timezone`
+- Đọc `user_settings.reminder_offsets_minutes` để gửi nhắc:
+  - trước `n` ngày (ví dụ `1440`, `2880` phút)
+  - trước `n` giờ (ví dụ `60`, `180`, `360` phút)
+- Gửi thông báo qua:
+  - push (`fcm_token`)
+  - email (`notification_email` hoặc fallback email tài khoản)
 
 ## 6) Deploy
 

@@ -21,6 +21,9 @@ class RecurringPaymentBase(BaseModel):
     amount: Decimal = Field(ge=0)
     payment_method: PaymentMethod = "visa"
     currency: str = "VND"
+    billing_anchor_date: Date = Field(default_factory=Date.today)
+    billing_interval_unit: str = "month"
+    billing_interval_count: int = Field(default=1, ge=1, le=3650)
     day_of_month: int = Field(ge=1, le=31)
     description: str | None = None
     is_active: bool = True
@@ -36,6 +39,9 @@ class RecurringPaymentUpdate(BaseModel):
     amount: Decimal | None = Field(default=None, ge=0)
     payment_method: PaymentMethod | None = None
     currency: str | None = None
+    billing_anchor_date: Date | None = None
+    billing_interval_unit: str | None = None
+    billing_interval_count: int | None = Field(default=None, ge=1, le=3650)
     day_of_month: int | None = Field(default=None, ge=1, le=31)
     description: str | None = None
     is_active: bool | None = None
@@ -86,6 +92,7 @@ class TimelineEventBase(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str | None = None
     date: Date
+    time_of_day: str | None = None
     status: TimelineStatus = "pending"
     category: str | None = None
 
@@ -98,6 +105,7 @@ class TimelineEventUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
     date: Date | None = None
+    time_of_day: str | None = None
     status: TimelineStatus | None = None
     category: str | None = None
 

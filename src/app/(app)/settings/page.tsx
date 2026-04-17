@@ -20,10 +20,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BackendStatusCard } from "@/components/backend/backend-status";
-import { AppSelect, type AppSelectOption } from "@/components/ui/app-select";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLanguage } from "@/lib/language";
 import { getCurrentUserId, getCurrentUserPayments, supabase } from "@/lib/supabase";
+import { getApiBaseUrl, isBackendApiEnabled } from "@/lib/api";
 import type { UserSettings } from "@/lib/types";
 import {
   getUIPreferencesFromStorage,
@@ -45,18 +45,31 @@ import {
 } from "@/lib/native-notifications";
 import { isCapacitorNativeRuntime } from "@/lib/platform";
 import { formatMoney } from "@/lib/utils";
+import { computeNextDueDateFromSchedule } from "@/lib/payment-schedule";
 
-const notifyOptions = [1, 3, 5, 7, 14];
-const notifySelectOptions: AppSelectOption[] = notifyOptions.map((option) => ({
-  value: String(option),
-  label: formatNotifyOption(option),
-}));
+const REMINDER_PRESET_MINUTES = [60, 180, 360, 720, 1440, 2880, 4320, 10080];
 
-function formatNotifyOption(value: number): string {
-  if (value === 1) return "1 day";
-  if (value === 7) return "1 week";
-  if (value === 14) return "2 weeks";
-  return `${value} days`;
+function formatOffsetLabel(minutes: number): string {
+  if (minutes % 1440 === 0) {
+    const days = minutes / 1440;
+    return days === 1 ? "Trước 1 ngày" : `Trước ${days} ngày`;
+  }
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return hours === 1 ? "Trước 1 giờ" : `Trước ${hours} giờ`;
+  }
+  return `Trước ${minutes} phút`;
+}
+
+function normalizeReminderOffsets(value: unknown): number[] {
+  if (!Array.isArray(value)) return [1440];
+  const parsed = value
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item) && item >= 0)
+    .map((item) => Math.floor(item));
+
+  if (parsed.length === 0) return [1440];
+  return Array.from(new Set(parsed)).sort((a, b) => a - b);
 }
 
 type SchemaHealthStatus = "idle" | "checking" | "healthy" | "degraded";
@@ -70,26 +83,6 @@ function extractMissingSchemaColumn(error: unknown): string | null {
   return match?.[1] ?? null;
 }
 
-function getLastDayOfMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-function computeNextDueDate(dayOfMonth: number, candidate?: string | null): Date {
-  if (candidate) {
-    const candidateDate = new Date(`${candidate}T09:00:00`);
-    if (!Number.isNaN(candidateDate.getTime())) return candidateDate;
-  }
-
-  const now = new Date();
-  const currentDay = Math.min(dayOfMonth, getLastDayOfMonth(now.getFullYear(), now.getMonth()));
-  const currentMonthDate = new Date(now.getFullYear(), now.getMonth(), currentDay, 9, 0, 0, 0);
-  if (currentMonthDate >= now) return currentMonthDate;
-
-  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1, 9, 0, 0, 0);
-  const nextDay = Math.min(dayOfMonth, getLastDayOfMonth(nextMonth.getFullYear(), nextMonth.getMonth()));
-  return new Date(nextMonth.getFullYear(), nextMonth.getMonth(), nextDay, 9, 0, 0, 0);
-}
-
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const { labels } = useLanguage();
@@ -97,8 +90,18 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [notifyBeforeDays, setNotifyBeforeDays] = useState(3);
+  const [reminderOffsetsMinutes, setReminderOffsetsMinutes] = useState<number[]>([1440]);
+  const [customOffsetValue, setCustomOffsetValue] = useState("1");
+  const [customOffsetUnit, setCustomOffsetUnit] = useState<"hour" | "day">("day");
   const [fcmToken, setFcmToken] = useState("");
+  const [notificationEmail, setNotificationEmail] = useState("");
+  const [timezone, setTimezone] = useState(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Ho_Chi_Minh";
+    } catch {
+      return "Asia/Ho_Chi_Minh";
+    }
+  });
   const [starDensity, setStarDensity] = useState<StarDensityMode>(() => getUIPreferencesFromStorage().starDensity);
   const [parallaxMode, setParallaxMode] = useState<ParallaxMode>(() => getUIPreferencesFromStorage().parallax);
   const [widgetSnapshot, setWidgetSnapshot] = useState<WidgetSnapshot | null>(null);
@@ -108,6 +111,10 @@ export default function SettingsPage() {
   const [notificationPermission, setNotificationPermission] = useState("unknown");
   const [syncingReminders, setSyncingReminders] = useState(false);
   const [reminderSyncMessage, setReminderSyncMessage] = useState("");
+  const [notificationStatus, setNotificationStatus] = useState<{
+    pushReady: boolean;
+    emailReady: boolean;
+  } | null>(null);
 
   const isNativeRuntime = isCapacitorNativeRuntime();
 
@@ -134,24 +141,49 @@ export default function SettingsPage() {
         return;
       }
       setNotificationsEnabled(true);
-      setNotifyBeforeDays(3);
+      setReminderOffsetsMinutes([1440]);
       setFcmToken("");
+      setNotificationEmail(user?.email ?? "");
       setLoading(false);
       return;
     }
 
     setNotificationsEnabled(row.notify_before_days > 0);
-    setNotifyBeforeDays(row.notify_before_days > 0 ? row.notify_before_days : 3);
+    if (row.reminder_offsets_minutes && row.reminder_offsets_minutes.length > 0) {
+      setReminderOffsetsMinutes(normalizeReminderOffsets(row.reminder_offsets_minutes));
+    } else {
+      const fallbackDays = row.notify_before_days > 0 ? row.notify_before_days : 1;
+      setReminderOffsetsMinutes([fallbackDays * 1440]);
+    }
     setFcmToken(row.fcm_token ?? "");
+    setNotificationEmail(row.notification_email ?? user?.email ?? "");
+    setTimezone(
+      row.timezone ??
+        (() => {
+          try {
+            return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Ho_Chi_Minh";
+          } catch {
+            return "Asia/Ho_Chi_Minh";
+          }
+        })()
+    );
     setLoading(false);
-  }, []);
+  }, [user?.email]);
 
   const checkSchemaHealth = useCallback(async (targetUserId: string) => {
     setSchemaStatus("checking");
     setSchemaMessage(labels.checkingSchema);
     setSchemaMissingColumns([]);
 
-    const requiredColumns = ["payment_method", "currency", "next_due_date"] as const;
+    const requiredColumns = [
+      "payment_method",
+      "currency",
+      "next_due_date",
+      "billing_anchor_date",
+      "billing_interval_unit",
+      "billing_interval_count",
+      "timezone",
+    ] as const;
     const missingColumns: string[] = [];
 
     for (const column of requiredColumns) {
@@ -216,6 +248,36 @@ export default function SettingsPage() {
   }, [checkSchemaHealth, loadSettings]);
 
   useEffect(() => {
+    if (!isBackendApiEnabled) return;
+    let mounted = true;
+    const checkNotificationStatus = async () => {
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/notifications/status`, {
+          method: "GET",
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          push?: { enabled?: boolean; initialized?: boolean };
+          email?: { enabled?: boolean };
+        };
+        if (!mounted) return;
+        setNotificationStatus({
+          pushReady: Boolean(data.push?.enabled && data.push?.initialized),
+          emailReady: Boolean(data.email?.enabled),
+        });
+      } catch {
+        if (!mounted) return;
+        setNotificationStatus(null);
+      }
+    };
+    void checkNotificationStatus();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const applySnapshot = () => {
       setWidgetSnapshot(readWidgetSnapshot());
     };
@@ -244,7 +306,7 @@ export default function SettingsPage() {
   );
 
   const syncPaymentReminders = useCallback(
-    async (targetUserId: string, leadDays: number, options?: { silentSuccess?: boolean }) => {
+    async (targetUserId: string, offsetsMinutes: number[], options?: { silentSuccess?: boolean }) => {
       setSyncingReminders(true);
       setReminderSyncMessage("Syncing payment reminders...");
 
@@ -254,7 +316,7 @@ export default function SettingsPage() {
           order: { column: "day_of_month", ascending: true },
         });
 
-        const result = await syncRecurringPaymentReminders(payments, leadDays);
+        const result = await syncRecurringPaymentReminders(payments, offsetsMinutes);
         if (!result.ok) {
           if (result.reason === "unsupported") {
             setReminderSyncMessage("Reminder sync is available on native app only.");
@@ -292,12 +354,12 @@ export default function SettingsPage() {
       const nextPayment = payments
         .map((payment) => ({
           ...payment,
-          dueDate: computeNextDueDate(payment.day_of_month, payment.next_due_date),
+          dueDate: computeNextDueDateFromSchedule(payment),
         }))
         .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
 
       const upcoming30d = payments
-        .map((payment) => computeNextDueDate(payment.day_of_month, payment.next_due_date))
+        .map((payment) => computeNextDueDateFromSchedule(payment))
         .filter((dueDate) => {
           const diffDays = (dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
           return diffDays >= 0 && diffDays <= 30;
@@ -333,9 +395,18 @@ export default function SettingsPage() {
     if (!userId) return;
     setSaving(true);
 
+    const sanitizedOffsets = notificationsEnabled
+      ? normalizeReminderOffsets(reminderOffsetsMinutes)
+      : [];
+    const maxOffsetMinutes = sanitizedOffsets.length > 0 ? Math.max(...sanitizedOffsets) : 0;
+    const notifyBeforeDays = notificationsEnabled ? Math.max(1, Math.ceil(maxOffsetMinutes / 1440)) : 0;
+
     const payload = {
-      notify_before_days: notificationsEnabled ? notifyBeforeDays : 0,
+      notify_before_days: notifyBeforeDays,
       fcm_token: fcmToken.trim() || null,
+      notification_email: notificationEmail.trim() || null,
+      reminder_offsets_minutes: sanitizedOffsets,
+      timezone: timezone.trim() || "Asia/Ho_Chi_Minh",
     };
 
     const { error } = await supabase
@@ -351,7 +422,7 @@ export default function SettingsPage() {
 
     toast.success("Da luu settings");
     if (isNativeRuntime) {
-      await syncPaymentReminders(userId, notificationsEnabled ? notifyBeforeDays : 0, {
+      await syncPaymentReminders(userId, sanitizedOffsets, {
         silentSuccess: true,
       });
     }
@@ -367,6 +438,30 @@ export default function SettingsPage() {
     const email = user?.email ?? "U";
     return email.charAt(0).toUpperCase();
   }, [user?.email]);
+
+  const toggleReminderOffset = (minutes: number) => {
+    setReminderOffsetsMinutes((current) => {
+      if (current.includes(minutes)) {
+        const filtered = current.filter((value) => value !== minutes);
+        return filtered.length > 0 ? filtered : [1440];
+      }
+      return [...current, minutes].sort((a, b) => a - b);
+    });
+  };
+
+  const addCustomReminderOffset = () => {
+    const parsed = Number(customOffsetValue);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast.error("Offset không hợp lệ");
+      return;
+    }
+    const minutes = customOffsetUnit === "day" ? Math.floor(parsed * 1440) : Math.floor(parsed * 60);
+    if (minutes <= 0) {
+      toast.error("Offset không hợp lệ");
+      return;
+    }
+    setReminderOffsetsMinutes((current) => Array.from(new Set([...current, minutes])).sort((a, b) => a - b));
+  };
 
   return (
     <div className="space-y-6">
@@ -441,22 +536,53 @@ export default function SettingsPage() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div className="space-y-2">
                 <div>
-                  <p className="text-sm font-medium text-white">{labels.notifyMeBefore}</p>
-                  <p className="text-xs text-dark-400">{labels.chooseLeadTime}</p>
+                  <p className="text-sm font-medium text-white">Mốc nhắc trước hạn</p>
+                  <p className="text-xs text-dark-400">Có thể chọn nhiều mốc: trước vài giờ, 1 ngày, n ngày.</p>
                 </div>
-                <AppSelect
-                  id="notify_before_days"
-                  value={String(notifyBeforeDays)}
-                  disabled={!notificationsEnabled}
-                  placeholder={labels.notifyMeBefore}
-                  onValueChange={(next) => setNotifyBeforeDays(Number(next))}
-                  options={notifySelectOptions}
-                  className="min-w-40"
-                  searchPlaceholder={labels.typeReminderDays}
-                  emptyLabel={labels.noMatchingOptions}
-                />
+                <div className="flex flex-wrap gap-2">
+                  {REMINDER_PRESET_MINUTES.map((offset) => {
+                    const active = reminderOffsetsMinutes.includes(offset);
+                    return (
+                      <Button
+                        key={offset}
+                        type="button"
+                        size="sm"
+                        variant={active ? "default" : "outline"}
+                        disabled={!notificationsEnabled}
+                        onClick={() => toggleReminderOffset(offset)}
+                      >
+                        {formatOffsetLabel(offset)}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    value={customOffsetValue}
+                    onChange={(event) => setCustomOffsetValue(event.target.value)}
+                    className="h-10 w-20 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white"
+                    disabled={!notificationsEnabled}
+                  />
+                  <select
+                    value={customOffsetUnit}
+                    onChange={(event) => setCustomOffsetUnit(event.target.value as "hour" | "day")}
+                    className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white"
+                    disabled={!notificationsEnabled}
+                  >
+                    <option value="hour">Giờ</option>
+                    <option value="day">Ngày</option>
+                  </select>
+                  <Button type="button" variant="outline" disabled={!notificationsEnabled} onClick={addCustomReminderOffset}>
+                    Thêm mốc
+                  </Button>
+                </div>
+                <p className="text-xs text-dark-400">
+                  Đang chọn: {reminderOffsetsMinutes.map((item) => formatOffsetLabel(item)).join(", ")}
+                </p>
               </div>
 
               <div>
@@ -471,6 +597,58 @@ export default function SettingsPage() {
                   className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-dark-400"
                 />
               </div>
+
+              <div>
+                <label htmlFor="notification_email" className="mb-1.5 block text-sm font-medium text-dark-300">
+                  Email nhan thong bao (optional)
+                </label>
+                <input
+                  id="notification_email"
+                  type="email"
+                  value={notificationEmail}
+                  onChange={(event) => setNotificationEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-dark-400"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="timezone" className="mb-1.5 block text-sm font-medium text-dark-300">
+                  Múi giờ reminder
+                </label>
+                <input
+                  id="timezone"
+                  value={timezone}
+                  onChange={(event) => setTimezone(event.target.value)}
+                  list="timezone-options"
+                  placeholder="Asia/Ho_Chi_Minh"
+                  className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-dark-400"
+                />
+                <datalist id="timezone-options">
+                  <option value="Asia/Ho_Chi_Minh" />
+                  <option value="Asia/Bangkok" />
+                  <option value="Asia/Singapore" />
+                  <option value="Asia/Tokyo" />
+                  <option value="UTC" />
+                  <option value="America/Los_Angeles" />
+                  <option value="America/New_York" />
+                  <option value="Europe/London" />
+                </datalist>
+                <p className="mt-1 text-xs text-dark-400">
+                  Gợi ý: đặt theo thiết bị của anh để reminder không lệch giờ.
+                </p>
+              </div>
+
+              {isBackendApiEnabled && notificationStatus ? (
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={notificationStatus.pushReady ? "success" : "danger"}>
+                    Push {notificationStatus.pushReady ? "ready" : "not ready"}
+                  </Badge>
+                  <Badge variant={notificationStatus.emailReady ? "success" : "danger"}>
+                    Email {notificationStatus.emailReady ? "ready" : "not ready"}
+                  </Badge>
+                </div>
+              ) : null}
 
               <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                 <p className="text-sm font-medium text-white">{labels.nativeReminderSync}</p>
@@ -506,7 +684,7 @@ export default function SettingsPage() {
                       if (!userId) return;
                       void syncPaymentReminders(
                         userId,
-                        notificationsEnabled ? notifyBeforeDays : 0
+                        notificationsEnabled ? reminderOffsetsMinutes : []
                       );
                     }}
                     disabled={!userId || syncingReminders || !isNativeRuntime}

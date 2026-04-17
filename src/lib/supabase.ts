@@ -40,6 +40,17 @@ function normalizeRecurringPayment(
       typeof row.currency === "string"
         ? (row.currency as RecurringPayment["currency"])
         : "VND",
+    billing_anchor_date:
+      typeof row.billing_anchor_date === "string"
+        ? row.billing_anchor_date
+        : typeof row.next_due_date === "string"
+          ? row.next_due_date
+          : new Date().toISOString().slice(0, 10),
+    billing_interval_unit:
+      row.billing_interval_unit === "day" || row.billing_interval_unit === "year"
+        ? row.billing_interval_unit
+        : "month",
+    billing_interval_count: Number(row.billing_interval_count ?? 1) || 1,
     day_of_month: Number(row.day_of_month ?? 1),
     description:
       typeof row.description === "string" ? row.description : null,
@@ -93,6 +104,9 @@ function applyRecurringPaymentFallbacks(
   payload: {
     payment_method: string;
     currency: string;
+    billing_anchor_date: string;
+    billing_interval_unit: string;
+    billing_interval_count: number;
     next_due_date?: string | null;
   }
 ) {
@@ -102,6 +116,15 @@ function applyRecurringPaymentFallbacks(
   }
   if (strippedColumns.has("currency")) {
     merged.currency = payload.currency;
+  }
+  if (strippedColumns.has("billing_anchor_date")) {
+    merged.billing_anchor_date = payload.billing_anchor_date;
+  }
+  if (strippedColumns.has("billing_interval_unit")) {
+    merged.billing_interval_unit = payload.billing_interval_unit;
+  }
+  if (strippedColumns.has("billing_interval_count")) {
+    merged.billing_interval_count = payload.billing_interval_count;
   }
   if (strippedColumns.has("next_due_date")) {
     merged.next_due_date = payload.next_due_date ?? null;
@@ -242,6 +265,9 @@ export async function upsertPayment(
     name: string;
     amount: number;
     payment_method: string;
+    billing_anchor_date: string;
+    billing_interval_unit: "day" | "month" | "year";
+    billing_interval_count: number;
     day_of_month: number;
     currency: string;
     description?: string | null;
@@ -256,6 +282,9 @@ export async function upsertPayment(
     name: payload.name,
     amount: payload.amount,
     payment_method: payload.payment_method,
+    billing_anchor_date: payload.billing_anchor_date,
+    billing_interval_unit: payload.billing_interval_unit,
+    billing_interval_count: payload.billing_interval_count,
     day_of_month: payload.day_of_month,
     currency: payload.currency,
     description: payload.description ?? null,
@@ -281,6 +310,9 @@ export async function upsertPayment(
       applyRecurringPaymentFallbacks(result.data, result.strippedColumns, {
         payment_method: payload.payment_method,
         currency: payload.currency,
+        billing_anchor_date: payload.billing_anchor_date,
+        billing_interval_unit: payload.billing_interval_unit,
+        billing_interval_count: payload.billing_interval_count,
         next_due_date: payload.next_due_date,
       })
     );
@@ -307,6 +339,9 @@ export async function upsertPayment(
     applyRecurringPaymentFallbacks(result.data, result.strippedColumns, {
       payment_method: payload.payment_method,
       currency: payload.currency,
+      billing_anchor_date: payload.billing_anchor_date,
+      billing_interval_unit: payload.billing_interval_unit,
+      billing_interval_count: payload.billing_interval_count,
       next_due_date: payload.next_due_date,
     })
   );

@@ -8,10 +8,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from auth import get_current_user
 from config import get_settings
-from cron.daily_job import run_daily_payment_job
+from cron.daily_job import run_payment_reminder_job
 from database import get_supabase_admin
 from models import APIMessage, RegisterFCMRequest, UserContext
 from routers import api_router
+from services.email_service import EmailService
+from services.notification_service import NotificationService
 
 
 logger = logging.getLogger(__name__)
@@ -23,16 +25,16 @@ scheduler = AsyncIOScheduler(timezone=settings.APP_TIMEZONE)
 async def lifespan(_: FastAPI):
     if not scheduler.running:
         scheduler.add_job(
-            run_daily_payment_job,
-            trigger=CronTrigger(hour=0, minute=5),
-            id="daily-recurring-payment-job",
+            run_payment_reminder_job,
+            trigger=CronTrigger(minute=5),
+            id="hourly-payment-reminder-job",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
             misfire_grace_time=1800,
         )
         scheduler.start()
-        logger.info("Scheduler started with daily job at 00:05 (%s).", settings.APP_TIMEZONE)
+        logger.info("Scheduler started with hourly reminder job at minute 05 (%s).", settings.APP_TIMEZONE)
 
     yield
 
@@ -82,3 +84,13 @@ def register_fcm(
         on_conflict="user_id",
     ).execute()
     return APIMessage(message="FCM token registered")
+
+
+@app.get("/api/notifications/status")
+def notification_status():
+    push_service = NotificationService()
+    email_service = EmailService()
+    return {
+        "push": push_service.get_status(),
+        "email": email_service.get_status(),
+    }
